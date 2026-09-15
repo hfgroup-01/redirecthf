@@ -111,7 +111,8 @@ export function validarUrl(url: string, campo = "URL"): string {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new HttpError(400, `${campo} precisa começar com http:// ou https://.`);
   }
-  return parsed.toString();
+  // O parser codifica "{lead}" no caminho como %7Blead%7D; devolve o marcador legível.
+  return parsed.toString().replace(/%7B/gi, "{").replace(/%7D/gi, "}");
 }
 
 export function validarHostname(h: string): string {

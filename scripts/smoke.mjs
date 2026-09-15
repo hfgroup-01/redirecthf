@@ -330,6 +330,24 @@ let linkX2 = null;
   ok(r6.status === 302 && (r6.headers.get("location") ?? "").startsWith("https://example.org/c1-x2"), "sem destinos, volta à URL padrão (cache invalidado)");
 }
 
+// 11c. marcador {lead} na URL de destino (sem CSV): id do lead encaixado na URL, com maiúsculas preservadas
+{
+  const p = await call(`/api/v1/links/${linkY1.id}`, { method: "PATCH", body: { destinationUrl: "https://example.org/order/{lead}" }, jar: cliente });
+  ok(p.status === 200 && p.json?.link?.destinationUrl === "https://example.org/order/{lead}", "destino com {lead} é salvo legível");
+  const r1 = await call(`/${linkY1.code}.jn0V72C34UZt`, { jar: anon, headers: { host: HOST_A } });
+  ok(r1.status === 302 && r1.headers.get("location") === "https://example.org/order/jn0V72C34UZt", `codigo.ID -> id encaixado na URL (${r1.headers.get("location")})`);
+  const r2 = await call(`/${linkY1.code}?l=123.456.789-09&utm_source=wa`, { jar: anon, headers: { host: HOST_A } });
+  ok(r2.status === 302 && r2.headers.get("location") === "https://example.org/order/12345678909?l=123.456.789-09&utm_source=wa", `CPF vira só dígitos no marcador (${r2.headers.get("location")})`);
+  const r3 = await call(`/${linkY1.code}`, { jar: anon, headers: { host: HOST_A } });
+  ok(r3.status === 302 && r3.headers.get("location") === "https://example.org/order/", "sem lead, o marcador some");
+  await call(`/api/v1/links/${linkY1.id}`, { method: "PATCH", body: { destinationUrl: "https://example.org/order/?order={lead}" }, jar: cliente });
+  const r4 = await call(`/${linkY1.code}.Greqq304FUfc`, { jar: anon, headers: { host: HOST_A } });
+  ok(r4.status === 302 && r4.headers.get("location") === "https://example.org/order/?order=Greqq304FUfc", "marcador na query string");
+  const res = await call(`/api/v1/resolve/${linkY1.code}?lead=Greqq304FUfc`, { jar: cliente });
+  ok(res.status === 200 && res.json?.destino === "https://example.org/order/?order=Greqq304FUfc", "resolve aplica o marcador");
+  await call(`/api/v1/links/${linkY1.id}`, { method: "PATCH", body: { destinationUrl: "https://example.org/c1-y" }, jar: cliente });
+}
+
 // 12. pausa / modo página / cliente OFF
 {
   await call(`/api/v1/links/${linkX1.id}`, { method: "PATCH", body: { active: false }, jar: cliente });

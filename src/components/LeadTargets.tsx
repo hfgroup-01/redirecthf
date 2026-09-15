@@ -146,6 +146,10 @@ export function LeadTargets({ link, total }: { link: Link; total: number }) {
             Cada lead pode ter a própria URL. Suba o CSV do disparo com uma coluna do lead (telefone ou id) e uma coluna com o link. No template, a variável vai como{" "}
             <code className="mono text-text">{exemploVar}</code>. Quem não tiver destino próprio cai na URL padrão do link.
           </p>
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed text-muted">
+            Se a URL só muda pelo id (ex.: <span className="mono">https://site.com/order/ID</span>), não precisa de CSV: ponha <code className="mono text-text">{"{lead}"}</code> na URL de destino do link e mande{" "}
+            <span className="mono">{link.code}.ID</span> no disparo.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className="badge border-accent/40 bg-accent/10 text-blue-300">{totalAtual.toLocaleString("pt-BR")} lead(s)</span>

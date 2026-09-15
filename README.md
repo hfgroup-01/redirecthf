@@ -100,10 +100,16 @@ O `config.yml` fica com ingress *catch-all*: qualquer host cujo DNS aponte para 
 4. Precisou trocar o destino? Edite no painel ou via API. O template não muda.
 5. Pausou o link/cliente, deixou o domínio OFF ou modo página → quem clicar vê a página white.
 
-## Um destino por lead (CSV com 100 mil linhas)
+## Um destino por lead
 
-Quando cada lead tem o próprio link, o código continua um só (a campanha) e os destinos ficam
-numa tabela por lead:
+**Caso simples (sem CSV):** o link do cliente só muda pelo id/CPF do lead, ex.
+`https://atendimento.marketing/order/jn0V72C34UZt`. Ponha `{lead}` na URL de destino do link
+(`https://atendimento.marketing/order/{lead}` ou `…/order/?order={lead}`) e envie `{{1}}` =
+`abc123.jn0V72C34UZt`. O HF encaixa o id na hora, preservando maiúsculas; CPF/telefone com
+pontuação viram só dígitos.
+
+**Caso geral (CSV com 100 mil linhas):** quando cada lead tem uma URL diferente, o código
+continua um só (a campanha) e os destinos ficam numa tabela por lead:
 
 1. Na página do link, **Destinos por lead (CSV)**: suba o CSV do disparo escolhendo a coluna do
    lead (telefone/id) e a coluna da URL. Entra em lotes de 1000 (100 mil leads em segundos).

@@ -11,7 +11,7 @@ import { enqueueClick, type ClickInput } from "@/lib/clickQueue";
 import { hmac } from "@/lib/crypto";
 import { clientIp } from "@/lib/http";
 import { normalizarHost } from "@/lib/hosts";
-import { normalizarLead, separarCodigoELead } from "@/lib/leads";
+import { aplicarLead, normalizarLead, separarCodigoELead, temMarcadorLead } from "@/lib/leads";
 import { hostInfoForHost } from "@/lib/pageForHost";
 import { resolveLink } from "@/lib/resolve";
 import { getTargetUrl } from "@/lib/stores/targets";
@@ -62,7 +62,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ code: strin
 
   // Destino do lead (se o link tem destinos por lead e o lead veio na URL).
   const urlDoLead = podeRedirecionar && lead && link.hasTargets ? await getTargetUrl(link.id, lead) : null;
-  let destino = urlDoLead ?? link.destinationUrl;
+  const bruto = urlDoLead ?? link.destinationUrl;
+  // Marcador {lead} na URL: encaixa o id/CPF/telefone do lead (sem CSV).
+  const usouMarcador = temMarcadorLead(bruto);
+  let destino = bruto && usouMarcador ? aplicarLead(bruto, lead) : bruto;
 
   if (!podeRedirecionar || !destino) {
     enqueueClick({ ...base, outcome: isBot ? "bot" : ligado ? "page" : "inactive" });
@@ -83,8 +86,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ code: strin
     try {
       const u = new URL(destino);
       for (const [k, v] of req.nextUrl.searchParams) u.searchParams.append(k, v);
-      // Lead vindo do caminho (codigo.lead) também vai como ?l= para o destino.
-      if (leadDoCaminho && !req.nextUrl.searchParams.has("l")) u.searchParams.append("l", leadDoCaminho);
+      // Lead vindo do caminho (codigo.lead) também vai como ?l= para o destino (se a URL não o usou no marcador).
+      if (leadDoCaminho && !usouMarcador && !req.nextUrl.searchParams.has("l")) u.searchParams.append("l", leadDoCaminho);
       destino = u.toString();
     } catch {
       /* mantém o destino como está */

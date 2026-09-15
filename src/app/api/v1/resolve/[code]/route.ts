@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { escopo } from "@/lib/auth";
 import { json, notFound, protegido } from "@/lib/http";
-import { normalizarLead } from "@/lib/leads";
+import { aplicarLead, normalizarLead } from "@/lib/leads";
 import { findLinkByCode } from "@/lib/stores/links";
 import { getTargetUrl } from "@/lib/stores/targets";
 
@@ -17,10 +17,11 @@ export const GET = protegido<{ code: string }>(async (req: NextRequest, actor, {
   if (!link) throw notFound(`Código "${code}" não existe.`);
   const lead = normalizarLead(q.get("lead")) || null;
   const urlDoLead = lead ? await getTargetUrl(link.id, lead) : null;
+  const bruto = urlDoLead ?? link.destinationUrl;
   return json({
     link,
     lead,
     target: lead && urlDoLead ? { lead, destinationUrl: urlDoLead } : null,
-    destino: link.active && link.mode === "redirect" ? (urlDoLead ?? link.destinationUrl) : null,
+    destino: link.active && link.mode === "redirect" && bruto ? aplicarLead(bruto, lead) : null,
   });
 });

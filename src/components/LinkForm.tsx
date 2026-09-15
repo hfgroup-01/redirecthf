@@ -119,8 +119,11 @@ export function LinkForm({ link, clients, domains, defaultClientId, role }: Prop
             <option value="page">Página white (informativa, sem redirect)</option>
           </select>
         </Field>
-        <Field label="URL de destino" hint="Para onde a pessoa vai ao clicar. Pode ser trocada a qualquer momento.">
-          <input className="input" value={f.destinationUrl} onChange={(e) => up("destinationUrl", e.target.value)} placeholder="https://…" />
+        <Field
+          label="URL de destino"
+          hint="Para onde a pessoa vai ao clicar. Pode ser trocada a qualquer momento. Use {lead} para encaixar o id/CPF/telefone do lead: https://site.com/order/{lead} com {{1}} = codigo.ID vira https://site.com/order/ID."
+        >
+          <input className="input" value={f.destinationUrl} onChange={(e) => up("destinationUrl", e.target.value)} placeholder="https://…  ou  https://site.com/order/{lead}" />
         </Field>
         {f.mode === "page" ? (
           <>
