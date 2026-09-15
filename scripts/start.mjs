@@ -31,7 +31,9 @@ if (!existsSync(server) || !existsSync(path.join(raiz, dist, "standalone", ".hf-
 
 process.env.PORT ||= "3100";
 process.env.HOSTNAME ||= "0.0.0.0";
-process.env.HF_DATA_DIR ||= path.join(raiz, "data");
+// Sempre absoluto: o server.js do standalone faz chdir para dentro do build, e um
+// "./data" relativo criaria outro data/.secret lá (tokens salvos ficariam ilegíveis).
+process.env.HF_DATA_DIR = path.resolve(raiz, process.env.HF_DATA_DIR?.trim() || "data");
 process.env.NODE_ENV ||= "production";
 
 await import(pathToFileURL(server).href);
