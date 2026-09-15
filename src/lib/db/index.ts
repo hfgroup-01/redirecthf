@@ -100,9 +100,12 @@ export async function checkDatabase(): Promise<DbHealth> {
       if (faltando.length) {
         return { ...base, erro: `Faltam tabelas no Supabase (${faltando.join(", ")}): rode supabase/schema.sql no SQL Editor.` };
       }
+      const [ns, v] = await Promise.all([
+        Promise.all(REQUIRED_TABLES.map((t) => escalar(`SELECT COUNT(*) FROM ${t}`))),
+        um<{ value: string }>("SELECT value FROM settings WHERE key = 'schema_version'"),
+      ]);
       const contagens: Record<string, number> = {};
-      for (const t of REQUIRED_TABLES) contagens[t] = await escalar(`SELECT COUNT(*) FROM ${t}`);
-      const v = await um<{ value: string }>("SELECT value FROM settings WHERE key = 'schema_version'");
+      REQUIRED_TABLES.forEach((t, i) => (contagens[t] = ns[i]));
       return { ...base, ok: true, versao: v ? Number(JSON.parse(v.value)) : 0, contagens };
     } catch (err) {
       return { ...base, erro: translateDbError(err) };

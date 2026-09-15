@@ -95,41 +95,50 @@ export async function overview(scope: Scope): Promise<Overview> {
   const extraK = cid ? "AND link_id IN (SELECT id FROM links WHERE client_id = ?)" : "";
   const vcid: Valor[] = cid ? [cid] : [];
 
-  const topLinks = (
-    await todos<{ id: string; code: string; label: string | null; client_name: string | null; domain_hostname: string | null; n: number }>(
-      `SELECT l.id, l.code, l.label, c.name AS client_name, d.hostname AS domain_hostname, COUNT(k.id) AS n
-       FROM clicks k JOIN links l ON l.id = k.link_id
-       LEFT JOIN clients c ON c.id = l.client_id
-       LEFT JOIN domains d ON d.id = l.domain_id
-       WHERE k.ts >= ? ${extraL} GROUP BY l.id, l.code, l.label, c.name, d.hostname ORDER BY n DESC LIMIT 8`,
-      isoDiasAtras(7),
-      ...vcid
-    )
-  ).map((r) => ({ id: r.id, code: r.code, label: r.label, clientName: r.client_name, domainHostname: r.domain_hostname, cliques: Number(r.n) }));
-
-  const recentClicks = (
-    await todos<ClickRow & { code: string; client_name: string | null }>(
-      `SELECT k.*, l.code, c.name AS client_name
-       FROM clicks k JOIN links l ON l.id = k.link_id LEFT JOIN clients c ON c.id = l.client_id
-       WHERE 1 = 1 ${extraL}
-       ORDER BY k.ts DESC, k.id DESC LIMIT 15`,
-      ...vcid
-    )
-  ).map((r) => ({ ...rowToClick(r), code: r.code, clientName: r.client_name }));
+  // Tudo em paralelo: com Supabase cada ida ao banco custa ~100ms; em série o dashboard passava de 1s.
+  const [topRows, recentRows, clicksToday, clicks7d, clicks30d, clicksTotal, linksTotal, linksActive, clientsTotal, domainsTotal, domainsActive, serie] =
+    await Promise.all([
+      todos<{ id: string; code: string; label: string | null; client_name: string | null; domain_hostname: string | null; n: number }>(
+        `SELECT l.id, l.code, l.label, c.name AS client_name, d.hostname AS domain_hostname, COUNT(k.id) AS n
+         FROM clicks k JOIN links l ON l.id = k.link_id
+         LEFT JOIN clients c ON c.id = l.client_id
+         LEFT JOIN domains d ON d.id = l.domain_id
+         WHERE k.ts >= ? ${extraL} GROUP BY l.id, l.code, l.label, c.name, d.hostname ORDER BY n DESC LIMIT 8`,
+        isoDiasAtras(7),
+        ...vcid
+      ),
+      todos<ClickRow & { code: string; client_name: string | null }>(
+        `SELECT k.*, l.code, c.name AS client_name
+         FROM clicks k JOIN links l ON l.id = k.link_id LEFT JOIN clients c ON c.id = l.client_id
+         WHERE 1 = 1 ${extraL}
+         ORDER BY k.ts DESC, k.id DESC LIMIT 15`,
+        ...vcid
+      ),
+      escalar(`SELECT COUNT(*) FROM clicks WHERE ts >= ? ${extraK}`, inicioDeHoje(), ...vcid),
+      escalar(`SELECT COUNT(*) FROM clicks WHERE ts >= ? ${extraK}`, isoDiasAtras(7), ...vcid),
+      escalar(`SELECT COUNT(*) FROM clicks WHERE ts >= ? ${extraK}`, isoDiasAtras(30), ...vcid),
+      escalar(`SELECT COALESCE(SUM(clicks_count), 0) FROM links WHERE 1 = 1 ${cid ? "AND client_id = ?" : ""}`, ...vcid),
+      escalar(`SELECT COUNT(*) FROM links WHERE 1 = 1 ${cid ? "AND client_id = ?" : ""}`, ...vcid),
+      escalar(`SELECT COUNT(*) FROM links WHERE active = ? ${cid ? "AND client_id = ?" : ""}`, true, ...vcid),
+      cid ? Promise.resolve(1) : escalar("SELECT COUNT(*) FROM clients"),
+      escalar(`SELECT COUNT(*) FROM domains WHERE 1 = 1 ${cid ? "AND client_id = ?" : ""}`, ...vcid),
+      escalar(`SELECT COUNT(*) FROM domains WHERE status = 'active' AND active = ? ${cid ? "AND client_id = ?" : ""}`, true, ...vcid),
+      serieDiaria(14, undefined, cid ?? undefined),
+    ]);
 
   return {
-    clicksToday: await escalar(`SELECT COUNT(*) FROM clicks WHERE ts >= ? ${extraK}`, inicioDeHoje(), ...vcid),
-    clicks7d: await escalar(`SELECT COUNT(*) FROM clicks WHERE ts >= ? ${extraK}`, isoDiasAtras(7), ...vcid),
-    clicks30d: await escalar(`SELECT COUNT(*) FROM clicks WHERE ts >= ? ${extraK}`, isoDiasAtras(30), ...vcid),
-    clicksTotal: await escalar(`SELECT COALESCE(SUM(clicks_count), 0) FROM links WHERE 1 = 1 ${cid ? "AND client_id = ?" : ""}`, ...vcid),
-    linksTotal: await escalar(`SELECT COUNT(*) FROM links WHERE 1 = 1 ${cid ? "AND client_id = ?" : ""}`, ...vcid),
-    linksActive: await escalar(`SELECT COUNT(*) FROM links WHERE active = ? ${cid ? "AND client_id = ?" : ""}`, true, ...vcid),
-    clientsTotal: cid ? 1 : await escalar("SELECT COUNT(*) FROM clients"),
-    domainsTotal: await escalar(`SELECT COUNT(*) FROM domains WHERE 1 = 1 ${cid ? "AND client_id = ?" : ""}`, ...vcid),
-    domainsActive: await escalar(`SELECT COUNT(*) FROM domains WHERE status = 'active' AND active = ? ${cid ? "AND client_id = ?" : ""}`, true, ...vcid),
-    topLinks,
-    recentClicks,
-    serie: await serieDiaria(14, undefined, cid ?? undefined),
+    clicksToday,
+    clicks7d,
+    clicks30d,
+    clicksTotal,
+    linksTotal,
+    linksActive,
+    clientsTotal,
+    domainsTotal,
+    domainsActive,
+    topLinks: topRows.map((r) => ({ id: r.id, code: r.code, label: r.label, clientName: r.client_name, domainHostname: r.domain_hostname, cliques: Number(r.n) })),
+    recentClicks: recentRows.map((r) => ({ ...rowToClick(r), code: r.code, clientName: r.client_name })),
+    serie,
   };
 }
 

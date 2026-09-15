@@ -94,10 +94,8 @@ export async function clearLegacyAdminPassword(): Promise<void> {
 
 // ------------------------------------------------------------ DNS / Cloudflare
 export async function getDnsTarget(): Promise<{ mode: DnsType; value: string }> {
-  return {
-    mode: await getSetting<DnsType>(K.dnsTargetMode, "CNAME"),
-    value: await getSetting<string>(K.dnsTargetValue, ""),
-  };
+  const [mode, value] = await Promise.all([getSetting<DnsType>(K.dnsTargetMode, "CNAME"), getSetting<string>(K.dnsTargetValue, "")]);
+  return { mode, value };
 }
 
 export async function setDnsTarget(mode: DnsType, value: string): Promise<void> {
@@ -156,17 +154,25 @@ export async function setClicksRetentionDays(n: number): Promise<void> {
 }
 
 export async function getSettingsView(): Promise<SettingsView> {
-  const dns = await getDnsTarget();
   const env = process.env.HF_ADMIN_HOST?.trim().toLowerCase() || "";
-  const setting = await getPanelHostSetting();
+  // Leituras independentes em paralelo (cada uma é uma ida ao banco).
+  const [dns, setting, instanceId, apiKey, tokenEnc, pageDefaults, clicksRetentionDays] = await Promise.all([
+    getDnsTarget(),
+    getPanelHostSetting(),
+    getInstanceId(),
+    getApiKey(),
+    getSetting<string>(K.cfTokenDefault, ""),
+    getPageDefaults(),
+    getClicksRetentionDays(),
+  ]);
   return {
-    instanceId: await getInstanceId(),
-    apiKey: await getApiKey(),
+    instanceId,
+    apiKey,
     dnsTargetMode: dns.mode,
     dnsTargetValue: dns.value,
-    hasDefaultToken: Boolean(await getSetting<string>(K.cfTokenDefault, "")),
-    pageDefaults: await getPageDefaults(),
-    clicksRetentionDays: await getClicksRetentionDays(),
+    hasDefaultToken: Boolean(tokenEnc),
+    pageDefaults,
+    clicksRetentionDays,
     panelHost: env || setting,
     panelHostSource: env ? "env" : setting ? "setting" : "none",
   };
