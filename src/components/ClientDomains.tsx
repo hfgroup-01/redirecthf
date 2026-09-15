@@ -73,7 +73,7 @@ export function ClientDomains({ client, domains, unassigned }: { client: Client;
       )}
       {unassigned.length ? (
         <div className="flex flex-wrap items-center gap-2">
-          <select className="input w-64" value={escolhido} onChange={(e) => setEscolhido(e.target.value)}>
+          <select className="input w-full sm:w-64" value={escolhido} onChange={(e) => setEscolhido(e.target.value)}>
             <option value="">— domínio sem dono —</option>
             {unassigned.map((d) => (
               <option key={d.id} value={d.id}>

@@ -28,7 +28,7 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
       </details>
 
       <form className="mb-4 flex gap-2">
-        <input className="input w-72" name="q" defaultValue={q ?? ""} placeholder="Buscar por nome, slug ou telefone…" />
+        <input className="input w-full sm:w-72" name="q" defaultValue={q ?? ""} placeholder="Buscar por nome, slug ou telefone…" />
         <button className="btn">Buscar</button>
       </form>
 
