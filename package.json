@@ -1,0 +1,36 @@
+{
+  "name": "hf-redirect",
+  "version": "0.1.0",
+  "private": true,
+  "description": "HF — CRM de redirects para links de templates WhatsApp (Cloudflare + SQLite local)",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "next dev -p 3100",
+    "build": "next build && node scripts/postbuild.mjs",
+    "start": "node scripts/start.mjs",
+    "hf": "node scripts/hf.mjs",
+    "typecheck": "tsc --noEmit",
+    "smoke": "node scripts/smoke.mjs",
+    "db:migrate": "node scripts/migrate-sqlite-to-supabase.mjs",
+    "tunnel:setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/tunnel-setup.ps1",
+    "tunnel": "cloudflared tunnel run hf"
+  },
+  "dependencies": {
+    "lucide-react": "^1.28.0",
+    "next": "^16.3.5",
+    "pg": "^8.23.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^24.10.1",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

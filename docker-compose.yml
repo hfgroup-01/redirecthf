@@ -1,0 +1,24 @@
+services:
+  hf:
+    build: .
+    container_name: hf-redirect
+    restart: unless-stopped
+    ports:
+      - "3100:3100"
+    environment:
+      PORT: "3100"
+      HF_DATA_DIR: /data
+      # Supabase: connection string (pooler, porta 6543). Vazio = SQLite no volume /data.
+      DATABASE_URL: ${DATABASE_URL:-}
+      # Segredo das sessões e dos tokens da Cloudflare (use o MESMO de data/.secret ao migrar).
+      HF_SECRET: ${HF_SECRET:-}
+      # Primeiro admin (opcional): com os dois, o HF cria o usuário sozinho no primeiro boot.
+      HF_ADMIN_EMAIL: ${HF_ADMIN_EMAIL:-}
+      HF_ADMIN_PASSWORD: ${HF_ADMIN_PASSWORD:-}
+      # Host do painel (ex.: hfredirect.online). Além dele, só localhost abre o painel.
+      HF_ADMIN_HOST: ${HF_ADMIN_HOST:-}
+    volumes:
+      - hf-data:/data
+
+volumes:
+  hf-data:

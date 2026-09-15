@@ -1,0 +1,16 @@
+node_modules/
+.next/
+out/
+data/
+!data/.gitkeep
+.env
+.env.local
+*.log
+tsconfig.tsbuildinfo
+next-env.d.ts
+data-smoke/
+build.log
+
+# builds paralelos (NEXT_DIST_DIR=.next-v3)
+.next-*/
+data-smoke/

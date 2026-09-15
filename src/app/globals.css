@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0e1117;
+  --color-panel: #151a23;
+  --color-panel-2: #1b2130;
+  --color-border: #262e3d;
+  --color-text: #e7eaf0;
+  --color-muted: #8d97aa;
+  --color-accent: #3b82f6;
+  --color-accent-2: #2563eb;
+  --color-ok: #22c55e;
+  --color-warn: #f59e0b;
+  --color-danger: #ef4444;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Componentes utilitários simples (sem lib de UI). */
+.btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-md border border-border bg-panel-2 px-3 py-1.5 text-sm font-medium text-text transition hover:bg-border disabled:cursor-not-allowed disabled:opacity-50;
+}
+.btn-primary {
+  @apply border-accent-2 bg-accent text-white hover:bg-accent-2;
+}
+.btn-danger {
+  @apply border-danger/40 bg-danger/10 text-red-300 hover:bg-danger/20;
+}
+.btn-sm {
+  @apply px-2 py-1 text-xs;
+}
+.input {
+  @apply w-full rounded-md border border-border bg-bg px-3 py-2 text-sm text-text placeholder:text-muted/70 focus:border-accent focus:outline-none;
+}
+.label {
+  @apply mb-1 block text-xs font-medium uppercase tracking-wide text-muted;
+}
+.card {
+  @apply rounded-lg border border-border bg-panel p-4;
+}
+.badge {
+  @apply inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide;
+}
+.table {
+  @apply w-full border-collapse text-sm;
+}
+.table th {
+  @apply border-b border-border px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted;
+}
+.table td {
+  @apply border-b border-border/60 px-3 py-2 align-middle;
+}
+.table tr:hover td {
+  @apply bg-panel-2/60;
+}
+.mono {
+  font-family: var(--font-mono);
+}

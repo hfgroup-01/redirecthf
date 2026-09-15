@@ -1,0 +1,9 @@
+node_modules
+.next
+data
+docs
+.env
+.env.local
+*.log
+.next-*
+data-smoke
