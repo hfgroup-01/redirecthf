@@ -21,6 +21,8 @@ export interface ResolvedLink {
   domainId: string | null;
   clientId: string | null;
   clientActive: boolean;
+  /** true = existem destinos por lead (lead_targets) para este link. */
+  hasTargets: boolean;
 }
 
 interface Entrada {
@@ -56,9 +58,11 @@ export async function resolveLink(domainId: string, codeRaw: string): Promise<Re
     domain_id: string | null;
     client_id: string | null;
     client_active: number | boolean | null;
+    has_targets: number | boolean;
   }>(
     `SELECT l.id, l.code, l.active, l.mode, l.destination_url, l.append_query, l.page_title, l.page_body,
-            l.domain_id, l.client_id, c.active AS client_active
+            l.domain_id, l.client_id, c.active AS client_active,
+            EXISTS (SELECT 1 FROM lead_targets t WHERE t.link_id = l.id) AS has_targets
      FROM links l LEFT JOIN clients c ON c.id = l.client_id
      WHERE l.domain_id = ? AND l.code = ?`,
     domainId,
@@ -78,6 +82,7 @@ export async function resolveLink(domainId: string, codeRaw: string): Promise<Re
         domainId: r.domain_id,
         clientId: r.client_id,
         clientActive: r.client_active === null ? true : Boolean(r.client_active),
+        hasTargets: Boolean(r.has_targets),
       }
     : null;
 

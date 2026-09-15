@@ -237,7 +237,7 @@ let linkX2 = null;
   ok(r.status === 201 && r.json?.link?.domainId === domB.id, `mesmo código /${linkX1.code} criado no domínio B`);
   linkX2 = r.json?.link;
   const dup = await call("/api/v1/links", { method: "POST", body: { clientId: c1.id, domainId: domA.id, code: linkX1.code, destinationUrl: "https://x.y" } });
-  ok(dup.status === 400 || dup.status === 500, "código duplicado NO MESMO domínio é rejeitado");
+  ok(dup.status === 409 || dup.status === 400, `código duplicado NO MESMO domínio é rejeitado (${dup.status}: ${dup.json?.error})`);
   const posse = await call("/api/v1/links", { method: "POST", body: { clientId: c1.id, domainId: domB.id, destinationUrl: "https://x.y" } });
   ok(posse.status === 400, "admin não cria link de c1 no domínio de c2 (400)");
 }
@@ -283,6 +283,51 @@ let linkX2 = null;
   ok(res.status === 200 && res.json?.link?.id === linkX2.id, "resolve com ?host= acha o link certo");
   const resC = await call(`/api/v1/resolve/${linkX1.code}`, { jar: cliente });
   ok(resC.status === 200 && resC.json?.link?.id === linkX1.id, "cliente: resolve por código sem ambiguidade no escopo");
+}
+
+// 11b. destinos por lead (CSV/API): codigo.lead e ?l= caem na URL do lead; sem destino, na padrão
+{
+  const up = await call(`/api/v1/links/${linkX1.id}/targets`, {
+    method: "POST",
+    body: { targets: [{ lead: "+55 (11) 99999-0001", url: "https://example.org/lead-1" }, { lead: "5511999990002", url: "https://example.org/lead-2" }, { lead: "", url: "https://x.y" }, { lead: "abc", url: "nao-e-url" }] },
+    jar: cliente,
+  });
+  ok(up.status === 200 && up.json?.resumo?.gravados === 2 && up.json?.resumo?.semLead === 1 && up.json?.resumo?.urlInvalida === 1, `API gravou destinos por lead (${JSON.stringify(up.json?.resumo)})`);
+  const r1 = await call(`/${linkX1.code}.5511999990001?utm_source=wa`, { jar: anon, headers: { host: HOST_A } });
+  ok(r1.status === 302 && r1.headers.get("location") === "https://example.org/lead-1?utm_source=wa&l=5511999990001", `codigo.lead -> URL do lead (${r1.headers.get("location")})`);
+  const r2 = await call(`/${linkX1.code}?l=5511999990002`, { jar: anon, headers: { host: HOST_A } });
+  ok(r2.status === 302 && (r2.headers.get("location") ?? "").startsWith("https://example.org/lead-2?"), "?l=lead -> URL do lead");
+  const r3 = await call(`/${linkX1.code}.5511999990009`, { jar: anon, headers: { host: HOST_A } });
+  ok(r3.status === 302 && (r3.headers.get("location") ?? "").startsWith("https://example.org/c1-x2"), "lead sem destino próprio -> URL padrão do link");
+  const r4 = await call(`/${linkX1.code}.5511999990001`, { jar: anon, headers: { host: HOST_B } });
+  ok(r4.status === 302 && r4.headers.get("location") === "https://example.org/c2-x?l=5511999990001", "mesmo código em B não usa os destinos de A");
+  const csv = "telefone;nome;link\r\n\"(55) 11 99999-0003\";Ana;https://example.org/lead-3\r\n5511999990001;Bia;https://example.org/lead-1b\r\n";
+  const imp = await call(`/api/v1/links/${linkX1.id}/targets/import?retorno=csv`, {
+    method: "POST",
+    jar: cliente,
+    raw: `--hfb\r\nContent-Disposition: form-data; name="file"; filename="leads.csv"\r\nContent-Type: text/csv\r\n\r\n${csv}\r\n--hfb\r\nContent-Disposition: form-data; name="leadColumn"\r\n\r\ntelefone\r\n--hfb\r\nContent-Disposition: form-data; name="urlColumn"\r\n\r\nlink\r\n--hfb--\r\n`,
+    headers: { "content-type": "multipart/form-data; boundary=hfb" },
+  });
+  const resumo = imp.headers.get("x-hf-resumo") ? JSON.parse(decodeURIComponent(imp.headers.get("x-hf-resumo"))).resumo : null;
+  ok(imp.status === 200 && resumo?.gravados === 2 && imp.texto.includes("hf_var") && imp.texto.includes(`${linkX1.code}.5511999990003`) && imp.texto.includes(`https://${HOST_A}/${linkX1.code}.5511999990003`), "import CSV devolve o arquivo com hf_var/hf_url");
+  const r5 = await call(`/${linkX1.code}.5511999990001`, { jar: anon, headers: { host: HOST_A } });
+  ok(r5.status === 302 && (r5.headers.get("location") ?? "").startsWith("https://example.org/lead-1b"), "reimportar atualiza a URL do lead (upsert)");
+  const lista = await call(`/api/v1/links/${linkX1.id}/targets?q=0003`, { jar: cliente });
+  ok(lista.status === 200 && lista.json?.totalNoLink === 3 && lista.json?.items?.length === 1 && lista.json.items[0].lead === "5511999990003", "lista/busca de destinos por lead");
+  const res = await call(`/api/v1/resolve/${linkX1.code}?lead=5511999990002`, { jar: cliente });
+  ok(res.status === 200 && res.json?.destino === "https://example.org/lead-2", "resolve com ?lead= mostra o destino do lead");
+  const exp = await call(`/api/v1/links/${linkX1.id}/targets/export`, { jar: cliente });
+  ok(exp.status === 200 && exp.texto.includes("lead;url;hf_var;hf_url") && exp.texto.split("\n").length >= 4, "export CSV dos destinos");
+  const outro = await call(`/api/v1/links/${linkX2.id}/targets`, { jar: cliente });
+  ok(outro.status === 404, "cliente não vê destinos de link de outro cliente");
+  await new Promise((r) => setTimeout(r, 1600));
+  const cont = await call(`/api/v1/links/${linkX1.id}/targets?q=5511999990001`, { jar: cliente });
+  ok(cont.json?.items?.[0]?.clicksCount >= 2, `contador de cliques do lead: ${cont.json?.items?.[0]?.clicksCount}`);
+  const del1 = await call(`/api/v1/links/${linkX1.id}/targets?lead=5511999990003`, { method: "DELETE", jar: cliente });
+  const delAll = await call(`/api/v1/links/${linkX1.id}/targets`, { method: "DELETE", jar: cliente });
+  ok(del1.json?.removidos === 1 && delAll.json?.removidos === 2, "apagar um lead e depois todos");
+  const r6 = await call(`/${linkX1.code}.5511999990001`, { jar: anon, headers: { host: HOST_A } });
+  ok(r6.status === 302 && (r6.headers.get("location") ?? "").startsWith("https://example.org/c1-x2"), "sem destinos, volta à URL padrão (cache invalidado)");
 }
 
 // 12. pausa / modo página / cliente OFF

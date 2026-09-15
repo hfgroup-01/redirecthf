@@ -144,7 +144,21 @@ export interface Click {
   ua: string | null;
   referer: string | null;
   query: string | null;
+  /** Identificador do lead (de `codigo.lead` ou `?l=`), quando veio. */
+  lead: string | null;
   outcome: string;
+}
+
+/** Destino específico de um lead dentro de um link (importado por CSV/API). */
+export interface LeadTarget {
+  id: number;
+  linkId: string;
+  lead: string;
+  destinationUrl: string;
+  clicksCount: number;
+  lastClickAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface LinkEvent {

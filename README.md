@@ -100,6 +100,21 @@ O `config.yml` fica com ingress *catch-all*: qualquer host cujo DNS aponte para 
 4. Precisou trocar o destino? Edite no painel ou via API. O template não muda.
 5. Pausou o link/cliente, deixou o domínio OFF ou modo página → quem clicar vê a página white.
 
+## Um destino por lead (CSV com 100 mil linhas)
+
+Quando cada lead tem o próprio link, o código continua um só (a campanha) e os destinos ficam
+numa tabela por lead:
+
+1. Na página do link, **Destinos por lead (CSV)**: suba o CSV do disparo escolhendo a coluna do
+   lead (telefone/id) e a coluna da URL. Entra em lotes de 1000 (100 mil leads em segundos).
+2. O HF devolve o **mesmo CSV com `hf_var` e `hf_url`**: `hf_var` é o valor de `{{1}}`
+   (`abc123.5511999990000`) e `hf_url` a URL completa. Use no disparador.
+3. Ao clicar, `https://<host>/abc123.5511999990000` (ou `abc123?l=5511999990000`) cai na URL
+   daquele lead; lead sem destino próprio cai na URL padrão do link. Telefones são comparados só
+   pelos dígitos. Cada lead tem contador de cliques.
+4. Via API (n8n): `POST /api/v1/links/:id/targets { targets: [{ lead, url }] }` (até 50 mil por
+   chamada), `GET …/targets/export` (CSV), `DELETE …/targets[?lead=]`.
+
 ## API rápida
 
 Header `x-api-key: <chave>` (ou `Authorization: Bearer`). Sessão de cliente pelo cookie enxerga só
@@ -115,13 +130,14 @@ o escopo dele; a chave de API é admin.
 | GET/POST | `/api/v1/links` · `/api/v1/links/:idOuCodigo?host=` (PATCH/DELETE) | links (`domainId` obrigatório; `?host=` se o código existe em vários domínios) |
 | POST | `/api/v1/links/bulk` | `{ clientId | ids[], destinationUrl?, mode?, active? }` |
 | GET | `/api/v1/links/:id/clicks?page=` | log de cliques |
+| GET/POST/DELETE | `/api/v1/links/:id/targets` · POST `…/targets/import` (CSV, `?retorno=csv`) · GET `…/targets/export` | destinos por lead |
 | GET/POST | `/api/v1/domains` · `/api/v1/domains/:id` (PATCH/DELETE) | `{ hostname }` ou `{ label, base }`, `clientId`, `cnpj`, `fbCode`, `redirectsEnabled` |
 | POST | `/api/v1/domains/:id/dns` · `/check` · `/meta` | provisionar DNS (admin) / verificar / conferir meta tag |
 | GET/POST | `/api/v1/wildcards` · `/api/v1/wildcards/:id` (DELETE) · `/:id/dns` · `/:id/check` | zonas curinga (admin) |
 | POST | `/api/v1/cnpj` | `{ cnpj }` → página white montada pela Receita |
 | GET | `/api/v1/optouts` · `?format=csv` | pedidos de opt-out (escopados) |
 | GET/PATCH | `/api/v1/settings` · POST `/settings/panel-host/dns` | configurações (admin) |
-| GET | `/api/v1/resolve/:codigo?host=` | o que um código faz hoje |
+| GET | `/api/v1/resolve/:codigo?host=&lead=` | o que um código (e um lead) faz hoje |
 | GET | `/api/v1/stats` | visão geral (escopada) |
 
 Exemplo (n8n → HTTP Request):

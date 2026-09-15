@@ -200,6 +200,22 @@ export const MIGRACOES: string[] = [
   CREATE INDEX links_domain_idx  ON links (domain_id);
   CREATE INDEX links_created_idx ON links (created_at DESC);
   `,
+  // v4 — destinos por lead (CSV): cada lead de um link pode ter a própria URL.
+  `
+  CREATE TABLE IF NOT EXISTS lead_targets (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    link_id         TEXT NOT NULL REFERENCES links(id) ON DELETE CASCADE,
+    lead_key        TEXT NOT NULL,
+    destination_url TEXT NOT NULL,
+    clicks_count    INTEGER NOT NULL DEFAULT 0,
+    last_click_at   TEXT,
+    created_at      TEXT NOT NULL,
+    updated_at      TEXT NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS lead_targets_link_lead_key ON lead_targets (link_id, lead_key);
+
+  ALTER TABLE clicks ADD COLUMN lead TEXT;
+  `,
 ];
 
 export const REQUIRED_TABLES = [
@@ -212,6 +228,7 @@ export const REQUIRED_TABLES = [
   "optouts",
   "users",
   "wildcards",
+  "lead_targets",
 ] as const;
 
 interface BancoMigravel {

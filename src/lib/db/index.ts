@@ -66,6 +66,7 @@ export function translateDbError(error: unknown): string {
   // SQLite e Postgres dizem a mesma coisa com palavras diferentes.
   if (/links\.domain_id, links\.code|links_domain_code_key/i.test(m)) return "Já existe um link com esse código neste domínio.";
   if (/users\.email|users_email_key/i.test(m)) return "Já existe um usuário com esse e-mail.";
+  if (/lead_targets\.link_id, lead_targets\.lead_key|lead_targets_link_lead_key/i.test(m)) return "Esse lead já tem destino neste link.";
   if (/wildcards\.base_hostname|wildcards_base_hostname_key/i.test(m)) return "Essa zona curinga já está cadastrada.";
   if (/links\.code|links_code_key/i.test(m)) return "Já existe um link com esse código.";
   if (/clients\.slug|clients_slug_key/i.test(m)) return "Já existe um cliente com esse slug.";

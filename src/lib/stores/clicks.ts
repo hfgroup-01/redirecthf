@@ -11,6 +11,7 @@ interface ClickRow {
   ua: string | null;
   referer: string | null;
   query: string | null;
+  lead?: string | null;
   outcome: string;
 }
 
@@ -23,6 +24,7 @@ const rowToClick = (r: ClickRow): Click => ({
   ua: r.ua,
   referer: r.referer,
   query: r.query,
+  lead: r.lead ?? null,
   outcome: r.outcome,
 });
 

@@ -71,9 +71,9 @@ const ok = (msg) => console.log("  ✔ " + msg);
 try {
   await pool.query("SELECT 1");
   const tabelas = new Set((await pool.query("SELECT table_name FROM information_schema.tables WHERE table_schema='public'")).rows.map((r) => r.table_name));
-  for (const tb of ["settings", "domains", "clients", "links", "clicks", "link_events", "optouts", "users", "wildcards"]) {
+  for (const tb of ["settings", "domains", "clients", "links", "clicks", "link_events", "optouts", "users", "wildcards", "lead_targets"]) {
     if (!tabelas.has(tb)) {
-      console.error(`Falta a tabela "${tb}" no Supabase. Rode supabase/schema.sql (v3) primeiro.`);
+      console.error(`Falta a tabela "${tb}" no Supabase. Rode supabase/schema.sql (v4) primeiro.`);
       process.exit(1);
     }
   }
@@ -155,11 +155,22 @@ try {
     const rows = sq.prepare("SELECT * FROM clicks").all();
     const n = await copiar(
       "clicks",
-      ["id", "link_id", "ts", "host", "country", "ua", "referer", "query", "ip_hash", "outcome"],
-      rows.map((r) => [r.id, r.link_id, t(r.ts), r.host, r.country, r.ua, r.referer, r.query, r.ip_hash, r.outcome]),
+      ["id", "link_id", "ts", "host", "country", "ua", "referer", "query", "ip_hash", "lead", "outcome"],
+      rows.map((r) => [r.id, r.link_id, t(r.ts), r.host, r.country, r.ua, r.referer, r.query, r.ip_hash, r.lead ?? null, r.outcome]),
       "(id)"
     );
     ok(`clicks: ${n}/${rows.length}`);
+  }
+  // lead_targets (destinos por lead)
+  {
+    const rows = temTabela("lead_targets") ? sq.prepare("SELECT * FROM lead_targets").all() : [];
+    const n = await copiar(
+      "lead_targets",
+      ["id", "link_id", "lead_key", "destination_url", "clicks_count", "last_click_at", "created_at", "updated_at"],
+      rows.map((r) => [r.id, r.link_id, r.lead_key, r.destination_url, Number(r.clicks_count ?? 0), t(r.last_click_at), t(r.created_at), t(r.updated_at)]),
+      "(id)"
+    );
+    ok(`lead_targets: ${n}/${rows.length}`);
   }
   // link_events
   {
@@ -184,7 +195,7 @@ try {
     ok(`optouts: ${n}/${rows.length}`);
   }
   // sequências dos ids numéricos
-  for (const tb of ["clicks", "link_events", "optouts"]) {
+  for (const tb of ["clicks", "link_events", "optouts", "lead_targets"]) {
     await pool.query(`SELECT setval(pg_get_serial_sequence('${tb}', 'id'), COALESCE((SELECT MAX(id) FROM ${tb}), 0) + 1, false)`);
   }
   ok("sequências ajustadas");

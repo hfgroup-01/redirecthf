@@ -183,6 +183,21 @@ update public.links l set domain_id = coalesce(
 alter table public.links drop constraint if exists links_code_key;
 create unique index if not exists links_domain_code_key on public.links (domain_id, code);
 
+-- ---------------------------------------------------------------- v4: destinos por lead (CSV)
+create table if not exists public.lead_targets (
+  id              bigserial primary key,
+  link_id         text not null references public.links(id) on delete cascade,
+  lead_key        text not null,
+  destination_url text not null,
+  clicks_count    bigint not null default 0,
+  last_click_at   timestamptz,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+create unique index if not exists lead_targets_link_lead_key on public.lead_targets (link_id, lead_key);
+
+alter table public.clicks add column if not exists lead text;
+
 -- ---------------------------------------------------------------- segurança
 -- RLS ligado e sem políticas = a API REST/anon do Supabase não lê nem escreve.
 -- O HF entra como postgres pela connection string e ignora RLS.
@@ -195,8 +210,9 @@ alter table public.link_events enable row level security;
 alter table public.optouts     enable row level security;
 alter table public.users       enable row level security;
 alter table public.wildcards   enable row level security;
+alter table public.lead_targets enable row level security;
 
 -- Versão do schema (o HF confere no /api/v1/health)
 insert into public.settings (key, value, updated_at)
-values ('schema_version', '"3"', now())
+values ('schema_version', '"4"', now())
 on conflict (key) do update set value = excluded.value, updated_at = now();

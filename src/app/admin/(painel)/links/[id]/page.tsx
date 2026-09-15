@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BarrasDiarias } from "@/components/Chart";
 import { CopyButton } from "@/components/CopyButton";
+import { LeadTargets } from "@/components/LeadTargets";
 import { LinkQuickActions } from "@/components/LinkActions";
 import { LinkForm } from "@/components/LinkForm";
 import { Tr } from "@/components/motion";
@@ -11,6 +12,7 @@ import { listClicks, serieDiaria } from "@/lib/stores/clicks";
 import { listClients } from "@/lib/stores/clients";
 import { listDomains } from "@/lib/stores/domains";
 import { getLink, listEvents } from "@/lib/stores/links";
+import { countTargets } from "@/lib/stores/targets";
 
 export const dynamic = "force-dynamic";
 
@@ -22,12 +24,13 @@ export default async function LinkPage({ params, searchParams }: { params: Promi
   const { page } = await searchParams;
   const link = await getLink(id, scope);
   if (!link) notFound();
-  const [clients, domains, events, clicks, serie] = await Promise.all([
+  const [clients, domains, events, clicks, serie, targets] = await Promise.all([
     admin ? listClients() : Promise.resolve([]),
     listDomains(scope),
     listEvents(link.id),
     listClicks(link.id, Math.max(1, Number(page ?? 1))),
     serieDiaria(14, link.id),
+    countTargets(link.id),
   ]);
   const totalPaginas = Math.max(1, Math.ceil(clicks.total / clicks.pageSize));
 
@@ -60,6 +63,7 @@ export default async function LinkPage({ params, searchParams }: { params: Promi
             <dl className="space-y-1 text-sm">
               <div className="flex justify-between"><dt className="text-muted">Cliques</dt><dd className="tabular-nums">{link.clicksCount}</dd></div>
               <div className="flex justify-between"><dt className="text-muted">Último clique</dt><dd>{fmtData(link.lastClickAt)}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted">Destinos por lead</dt><dd className="tabular-nums">{targets.toLocaleString("pt-BR")}</dd></div>
               <div className="flex justify-between"><dt className="text-muted">Criado</dt><dd>{fmtData(link.createdAt)}</dd></div>
               <div className="flex justify-between"><dt className="text-muted">Status</dt><dd>{link.active ? <Badge tone="ok">Ativo</Badge> : <Badge tone="warn">Pausado</Badge>}</dd></div>
             </dl>
@@ -89,6 +93,10 @@ export default async function LinkPage({ params, searchParams }: { params: Promi
         </div>
       </div>
 
+      <div className="mb-6">
+        <LeadTargets link={link} total={targets} />
+      </div>
+
       <div className="card overflow-x-auto p-0">
         <div className="flex items-center justify-between px-3 py-2">
           <h2 className="text-sm font-semibold">Acessos ({clicks.total})</h2>
@@ -105,6 +113,7 @@ export default async function LinkPage({ params, searchParams }: { params: Promi
             <tr>
               <th>Quando</th>
               <th>Resultado</th>
+              <th>Lead</th>
               <th>País</th>
               <th>Host</th>
               <th>Query</th>
@@ -117,6 +126,7 @@ export default async function LinkPage({ params, searchParams }: { params: Promi
               <Tr key={c.id} i={i}>
                 <td className="whitespace-nowrap text-muted">{fmtData(c.ts)}</td>
                 <td><Badge tone={c.outcome === "redirect" ? "ok" : c.outcome === "bot" ? "muted" : "warn"}>{c.outcome}</Badge></td>
+                <td className="mono text-xs">{c.lead ?? "—"}</td>
                 <td>{c.country ?? "—"}</td>
                 <td className="mono text-xs text-muted">{c.host ?? "—"}</td>
                 <td className="mono max-w-[200px] truncate text-xs text-muted" title={c.query ?? ""}>{c.query ?? "—"}</td>
@@ -126,7 +136,7 @@ export default async function LinkPage({ params, searchParams }: { params: Promi
             ))}
             {!clicks.items.length ? (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-muted">
+                <td colSpan={8} className="py-8 text-center text-muted">
                   Nenhum acesso ainda.
                 </td>
               </tr>

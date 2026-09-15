@@ -1,8 +1,8 @@
 /**
  * Registro de cliques em lote: o redirect só empilha em memória e responde;
  * a cada ~1s a fila é gravada numa única transação (1 INSERT multi-linha +
- * 1 UPDATE de contador por link). Com Supabase isso vira ~2 idas ao banco por
- * segundo, independentemente do volume de cliques.
+ * 1 UPDATE de contador por link + 1 por lead com destino próprio). Com Supabase
+ * isso vira poucas idas ao banco por segundo, independentemente do volume.
  */
 import { agora, transacao, type Valor } from "@/lib/db";
 
@@ -14,6 +14,10 @@ export interface ClickInput {
   referer: string | null;
   query: string | null;
   ipHash: string | null;
+  /** Lead identificado (codigo.lead ou ?l=), se veio. */
+  lead: string | null;
+  /** true = o destino veio de lead_targets (conta no contador do lead). */
+  viaTarget?: boolean;
   /** "bot" = fetcher de preview (WhatsApp/Meta): fica no log, não conta como clique. */
   outcome: "redirect" | "page" | "inactive" | "bot";
 }
@@ -29,7 +33,7 @@ const fila = (): Fila => (g.__hfClickQueue ??= { itens: [], timer: null, gravand
 
 const INTERVALO_MS = 1000;
 const LOTE_MAX = 2000;
-const COLUNAS = ["link_id", "ts", "host", "country", "ua", "referer", "query", "ip_hash", "outcome"];
+const COLUNAS = ["link_id", "ts", "host", "country", "ua", "referer", "query", "ip_hash", "lead", "outcome"];
 
 export function enqueueClick(c: ClickInput): void {
   const f = fila();
@@ -56,9 +60,10 @@ export async function flushClicks(): Promise<number> {
   f.itens = [];
   try {
     await transacao(async (tx) => {
-      const linhas: Valor[][] = lote.map((c) => [c.linkId, c.ts, c.host, c.country, c.ua, c.referer, c.query, c.ipHash, c.outcome]);
+      const linhas: Valor[][] = lote.map((c) => [c.linkId, c.ts, c.host, c.country, c.ua, c.referer, c.query, c.ipHash, c.lead, c.outcome]);
       await tx.insertMany("clicks", COLUNAS, linhas);
       const porLink = new Map<string, { n: number; ultimo: string }>();
+      const porLead = new Map<string, { linkId: string; lead: string; n: number; ultimo: string }>();
       for (const c of lote) {
         if (c.outcome === "bot") continue;
         const e = porLink.get(c.linkId);
@@ -66,9 +71,26 @@ export async function flushClicks(): Promise<number> {
           e.n++;
           if (c.ts > e.ultimo) e.ultimo = c.ts;
         } else porLink.set(c.linkId, { n: 1, ultimo: c.ts });
+        if (c.viaTarget && c.lead) {
+          const k = `${c.linkId}|${c.lead}`;
+          const t = porLead.get(k);
+          if (t) {
+            t.n++;
+            if (c.ts > t.ultimo) t.ultimo = c.ts;
+          } else porLead.set(k, { linkId: c.linkId, lead: c.lead, n: 1, ultimo: c.ts });
+        }
       }
       for (const [linkId, e] of porLink) {
         await tx.rodar("UPDATE links SET clicks_count = clicks_count + ?, last_click_at = ? WHERE id = ?", e.n, e.ultimo, linkId);
+      }
+      for (const t of porLead.values()) {
+        await tx.rodar(
+          "UPDATE lead_targets SET clicks_count = clicks_count + ?, last_click_at = ? WHERE link_id = ? AND lead_key = ?",
+          t.n,
+          t.ultimo,
+          t.linkId,
+          t.lead
+        );
       }
     });
     return lote.length;
