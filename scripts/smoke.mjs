@@ -320,6 +320,21 @@ let linkX2 = null;
   ok(exp.status === 200 && exp.texto.includes("lead;url;hf_var;hf_url") && exp.texto.split("\n").length >= 4, "export CSV dos destinos");
   const outro = await call(`/api/v1/links/${linkX2.id}/targets`, { jar: cliente });
   ok(outro.status === 404, "cliente não vê destinos de link de outro cliente");
+  // CSV sem coluna de URL (modo marcador): não grava nada, só devolve hf_var/hf_url
+  const csvSemUrl = "Variavel_1,telefone\r\n\"Olá, Ana\",(55) 11 98888-0001\r\n\"Olá, Bia\",5511988880002\r\n";
+  const semUrl = await call(`/api/v1/links/${linkY1.id}/targets/import?retorno=csv`, {
+    method: "POST",
+    jar: cliente,
+    raw: `--hfb\r\nContent-Disposition: form-data; name="file"; filename="mailing.csv"\r\nContent-Type: text/csv\r\n\r\n${csvSemUrl}\r\n--hfb\r\nContent-Disposition: form-data; name="leadColumn"\r\n\r\ntelefone\r\n--hfb\r\nContent-Disposition: form-data; name="semUrl"\r\n\r\n1\r\n--hfb--\r\n`,
+    headers: { "content-type": "multipart/form-data; boundary=hfb" },
+  });
+  const metaSemUrl = semUrl.headers.get("x-hf-resumo") ? JSON.parse(decodeURIComponent(semUrl.headers.get("x-hf-resumo"))) : null;
+  ok(
+    semUrl.status === 200 && metaSemUrl?.resumo?.gravados === 2 && semUrl.texto.includes(`${linkY1.code}.5511988880001`) && semUrl.texto.includes("hf_url"),
+    "CSV sem coluna de URL gera hf_var/hf_url (modo {lead})"
+  );
+  const semTargets = await call(`/api/v1/links/${linkY1.id}/targets`, { jar: cliente });
+  ok(semTargets.json?.totalNoLink === 0, "modo {lead} não grava destinos no banco");
   await new Promise((r) => setTimeout(r, 1600));
   const cont = await call(`/api/v1/links/${linkX1.id}/targets?q=5511999990001`, { jar: cliente });
   ok(cont.json?.items?.[0]?.clicksCount >= 2, `contador de cliques do lead: ${cont.json?.items?.[0]?.clicksCount}`);

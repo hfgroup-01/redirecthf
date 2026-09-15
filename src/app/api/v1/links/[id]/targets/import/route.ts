@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { indiceColuna, parseCsv, sugerirColunas, toCsv } from "@/lib/csv";
 import { badRequest, json, notFound, protegido, str } from "@/lib/http";
-import { normalizarLead, variavelTemplate } from "@/lib/leads";
+import { normalizarLead, temMarcadorLead, variavelTemplate } from "@/lib/leads";
 import { acharLink } from "@/lib/stores/acharLink";
 import { upsertTargets } from "@/lib/stores/targets";
 
@@ -14,8 +14,15 @@ const MAX_LINHAS = 250_000;
 
 /**
  * POST multipart: file (CSV), leadColumn?, urlColumn? (nome ou índice; vazio = automático).
- * ?retorno=csv devolve o MESMO CSV com as colunas hf_var e hf_url (para o disparador),
- * com o resumo no header x-hf-resumo. Sem retorno, devolve JSON com o resumo.
+ *
+ * Dois modos:
+ *  - com coluna de URL: cada lead ganha a própria URL (grava em lead_targets);
+ *  - sem coluna de URL ("marcador"): não grava nada — só gera as colunas hf_var
+ *    e hf_url. Serve quando a URL de destino do link usa {lead} (a substituição
+ *    acontece no clique) ou quando todos vão para a mesma URL.
+ *
+ * ?retorno=csv devolve o MESMO CSV com hf_var e hf_url e o resumo no header
+ * x-hf-resumo; sem retorno, devolve JSON com o resumo.
  */
 export const POST = protegido<{ id: string }>(async (req: NextRequest, actor, { id }) => {
   const link = await acharLink(id, actor, req);
@@ -34,18 +41,36 @@ export const POST = protegido<{ id: string }>(async (req: NextRequest, actor, { 
   const sug = sugerirColunas(header, dados.slice(0, 20));
   const pedidoLead = str(form?.get("leadColumn"));
   const pedidoUrl = str(form?.get("urlColumn"));
-  const iLead = pedidoLead ? indiceColuna(header, pedidoLead) : sug.lead;
-  const iUrl = pedidoUrl ? indiceColuna(header, pedidoUrl) : sug.url;
-  if (pedidoLead && iLead < 0) throw badRequest(`Coluna do lead "${pedidoLead}" não existe no arquivo.`);
-  if (pedidoUrl && iUrl < 0) throw badRequest(`Coluna da URL "${pedidoUrl}" não existe no arquivo.`);
-  if (iLead < 0 || iUrl < 0) throw badRequest("Não identifiquei as colunas do lead e da URL: escolha-as no formulário.");
-  if (iLead === iUrl) throw badRequest("A coluna do lead e a da URL precisam ser diferentes.");
+  const semUrl = str(form?.get("semUrl")) === "1" || (!pedidoUrl && sug.url < 0);
 
-  const resumo = await upsertTargets(
-    link.id,
-    dados.map((r) => ({ lead: r[iLead] ?? "", url: r[iUrl] ?? "" }))
-  );
-  const colunas = { lead: header[iLead], url: header[iUrl] };
+  const iLead = pedidoLead ? indiceColuna(header, pedidoLead) : sug.lead;
+  if (pedidoLead && iLead < 0) throw badRequest(`Coluna do lead "${pedidoLead}" não existe no arquivo.`);
+  if (iLead < 0) throw badRequest("Não identifiquei a coluna do lead (telefone/id): escolha-a no formulário.");
+
+  const iUrl = semUrl ? -1 : pedidoUrl ? indiceColuna(header, pedidoUrl) : sug.url;
+  if (!semUrl && pedidoUrl && iUrl < 0) throw badRequest(`Coluna da URL "${pedidoUrl}" não existe no arquivo.`);
+  if (!semUrl && iUrl < 0) throw badRequest("Não achei a coluna da URL. Se a URL é a mesma para todos, marque a opção de gerar sem coluna de URL.");
+  if (iUrl >= 0 && iUrl === iLead) throw badRequest("A coluna do lead e a da URL precisam ser diferentes.");
+
+  const avisos: string[] = [];
+  let resumo: Awaited<ReturnType<typeof upsertTargets>> | { recebidos: number; gravados: number; semLead: number; urlInvalida: number; duplicadosNoArquivo: number; exemplosErro: string[] };
+  const colunas = { lead: header[iLead], url: iUrl >= 0 ? header[iUrl] : null };
+
+  if (iUrl >= 0) {
+    resumo = await upsertTargets(
+      link.id,
+      dados.map((r) => ({ lead: r[iLead] ?? "", url: r[iUrl] ?? "" }))
+    );
+  } else {
+    // Modo marcador: nada é gravado; só contamos os leads válidos.
+    let comLead = 0;
+    let semLead = 0;
+    for (const r of dados) (normalizarLead(r[iLead]) ? comLead++ : semLead++);
+    resumo = { recebidos: dados.length, gravados: comLead, semLead, urlInvalida: 0, duplicadosNoArquivo: 0, exemplosErro: [] };
+    if (link.mode === "redirect" && !temMarcadorLead(link.destinationUrl)) {
+      avisos.push("A URL de destino do link não tem {lead}: todos os leads vão para a mesma URL. Para direcionar cada um, ponha {lead} na URL de destino do link.");
+    }
+  }
 
   if (req.nextUrl.searchParams.get("retorno") === "csv") {
     const host = link.domainHostname;
@@ -59,10 +84,10 @@ export const POST = protegido<{ id: string }>(async (req: NextRequest, actor, { 
       headers: {
         "content-type": "text/csv; charset=utf-8",
         "content-disposition": `attachment; filename="${link.code}-hf.csv"`,
-        "x-hf-resumo": encodeURIComponent(JSON.stringify({ resumo, colunas })),
+        "x-hf-resumo": encodeURIComponent(JSON.stringify({ resumo, colunas, avisos })),
         "cache-control": "no-store",
       },
     });
   }
-  return json({ ok: true, resumo, colunas });
+  return json({ ok: true, resumo, colunas, avisos });
 });

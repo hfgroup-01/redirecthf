@@ -31,11 +31,12 @@ export function variavelTemplate(code: string, lead: string): string {
   return `${code}.${lead}`;
 }
 
-const MARCADOR = /\{\{?lead\}?\}|%7B%7B?lead%7D?%7D/gi;
+/** Regex nova a cada uso: `g` guarda estado (lastIndex) e vazaria entre chamadas. */
+const marcador = () => /\{\{?lead\}?\}|%7B%7B?lead%7D?%7D/gi;
 
 /** A URL de destino tem o marcador {lead}? */
 export function temMarcadorLead(url: string | null | undefined): boolean {
-  return Boolean(url) && MARCADOR.test(url!) && ((MARCADOR.lastIndex = 0), true);
+  return Boolean(url) && marcador().test(url as string);
 }
 
 /**
@@ -44,5 +45,5 @@ export function temMarcadorLead(url: string | null | undefined): boolean {
  * some (o site do cliente mostra "pedido não localizado", que é o esperado).
  */
 export function aplicarLead(url: string, lead: string | null): string {
-  return url.replace(MARCADOR, lead ? encodeURIComponent(lead) : "");
+  return url.replace(marcador(), lead ? encodeURIComponent(lead) : "");
 }
