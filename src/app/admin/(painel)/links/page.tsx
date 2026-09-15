@@ -1,8 +1,10 @@
+import { Link2 } from "lucide-react";
 import Link from "next/link";
 import { LinkQuickActions } from "@/components/LinkActions";
 import { LinkFilters } from "@/components/LinkFilters";
 import { LinkForm } from "@/components/LinkForm";
-import { Badge, PageHeader, fmtData } from "@/components/ui";
+import { Tr } from "@/components/motion";
+import { Badge, EmptyState, PageHeader, fmtData } from "@/components/ui";
 import { escopo, requirePanelUser } from "@/lib/auth";
 import { listClients } from "@/lib/stores/clients";
 import { listDomains } from "@/lib/stores/domains";
@@ -87,8 +89,8 @@ export default async function LinksPage({ searchParams }: { searchParams: Promis
             </tr>
           </thead>
           <tbody>
-            {r.items.map((l) => (
-              <tr key={l.id}>
+            {r.items.map((l, i) => (
+              <Tr key={l.id} i={i}>
                 <td>
                   <Link href={`/admin/links/${l.id}`} className="mono font-medium hover:underline">
                     /{l.code}
@@ -119,12 +121,12 @@ export default async function LinksPage({ searchParams }: { searchParams: Promis
                 <td>
                   <LinkQuickActions link={l} />
                 </td>
-              </tr>
+              </Tr>
             ))}
             {!r.items.length ? (
               <tr>
-                <td colSpan={admin ? 8 : 7} className="py-8 text-center text-muted">
-                  Nenhum link encontrado.
+                <td colSpan={admin ? 8 : 7}>
+                  <EmptyState icon={<Link2 size={18} />} title="Nenhum link encontrado" text="Crie um link acima ou ajuste os filtros." />
                 </td>
               </tr>
             ) : null}

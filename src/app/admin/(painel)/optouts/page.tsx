@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Tr } from "@/components/motion";
 import { OptOutDelete } from "@/components/OptOutDelete";
 import { PageHeader, fmtData } from "@/components/ui";
 import { escopo, requirePanelUser } from "@/lib/auth";
@@ -36,8 +37,8 @@ export default async function OptOutsPage({ searchParams }: { searchParams: Prom
             </tr>
           </thead>
           <tbody>
-            {r.items.map((o) => (
-              <tr key={o.id}>
+            {r.items.map((o, i) => (
+              <Tr key={o.id} i={i}>
                 <td className="whitespace-nowrap text-muted">{fmtData(o.ts)}</td>
                 <td className="mono">{o.contact ?? "—"}</td>
                 <td className="mono">{o.lead ?? "—"}</td>
@@ -46,7 +47,7 @@ export default async function OptOutsPage({ searchParams }: { searchParams: Prom
                 <td>
                   <OptOutDelete id={o.id} />
                 </td>
-              </tr>
+              </Tr>
             ))}
             {!r.items.length ? (
               <tr>

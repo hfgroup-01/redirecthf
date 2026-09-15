@@ -4,6 +4,7 @@ import { BarrasDiarias } from "@/components/Chart";
 import { CopyButton } from "@/components/CopyButton";
 import { LinkQuickActions } from "@/components/LinkActions";
 import { LinkForm } from "@/components/LinkForm";
+import { Tr } from "@/components/motion";
 import { Badge, PageHeader, fmtData } from "@/components/ui";
 import { escopo, requirePanelUser } from "@/lib/auth";
 import { listClicks, serieDiaria } from "@/lib/stores/clicks";
@@ -112,8 +113,8 @@ export default async function LinkPage({ params, searchParams }: { params: Promi
             </tr>
           </thead>
           <tbody>
-            {clicks.items.map((c) => (
-              <tr key={c.id}>
+            {clicks.items.map((c, i) => (
+              <Tr key={c.id} i={i}>
                 <td className="whitespace-nowrap text-muted">{fmtData(c.ts)}</td>
                 <td><Badge tone={c.outcome === "redirect" ? "ok" : c.outcome === "bot" ? "muted" : "warn"}>{c.outcome}</Badge></td>
                 <td>{c.country ?? "—"}</td>
@@ -121,7 +122,7 @@ export default async function LinkPage({ params, searchParams }: { params: Promi
                 <td className="mono max-w-[200px] truncate text-xs text-muted" title={c.query ?? ""}>{c.query ?? "—"}</td>
                 <td className="max-w-[200px] truncate text-xs text-muted" title={c.referer ?? ""}>{c.referer ?? "—"}</td>
                 <td className="max-w-[260px] truncate text-xs text-muted" title={c.ua ?? ""}>{c.ua ?? "—"}</td>
-              </tr>
+              </Tr>
             ))}
             {!clicks.items.length ? (
               <tr>

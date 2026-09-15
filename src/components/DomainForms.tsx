@@ -254,6 +254,8 @@ export function DomainActions({ domain, compact = false, role }: { domain: Domai
             type="button"
             className="btn btn-sm btn-danger"
             disabled={ocupado !== null}
+            title="Remover domínio"
+            aria-label="Remover domínio"
             onClick={async () => {
               const n = domain.linksCount ?? 0;
               if (!confirm(`Remover ${domain.hostname} do HF?${n ? ` Ele tem ${n} link(s), que serão apagados.` : ""}`)) return;

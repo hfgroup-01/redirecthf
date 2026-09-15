@@ -180,7 +180,7 @@ export function ApiKeyPanel({ apiKey }: { apiKey: string }) {
     <div className="space-y-2">
       <div className="flex items-center gap-2">
         <code className="mono flex-1 truncate rounded-md border border-border bg-bg px-3 py-2 text-sm">{mostrar ? key : "•".repeat(28)}</code>
-        <button type="button" className="btn" onClick={() => setMostrar((v) => !v)}>
+        <button type="button" className="btn" aria-label={mostrar ? "Ocultar chave" : "Mostrar chave"} onClick={() => setMostrar((v) => !v)}>
           {mostrar ? <EyeOff size={14} /> : <Eye size={14} />}
         </button>
         <CopyButton text={key} small={false} />

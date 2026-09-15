@@ -1,7 +1,9 @@
+import { Users } from "lucide-react";
 import Link from "next/link";
 import { ClientRowActions, ClientSwitch } from "@/components/ClientActions";
 import { ClientForm } from "@/components/ClientForm";
-import { PageHeader } from "@/components/ui";
+import { Tr } from "@/components/motion";
+import { EmptyState, PageHeader } from "@/components/ui";
 import { requirePanelAdmin } from "@/lib/auth";
 import { ADMIN_SCOPE } from "@/lib/scope";
 import { listClients } from "@/lib/stores/clients";
@@ -46,8 +48,8 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
             </tr>
           </thead>
           <tbody>
-            {clients.map((c) => (
-              <tr key={c.id}>
+            {clients.map((c, i) => (
+              <Tr key={c.id} i={i}>
                 <td>
                   <Link href={`/admin/clientes/${c.id}`} className="font-medium hover:underline">
                     {c.name}
@@ -66,12 +68,12 @@ export default async function ClientesPage({ searchParams }: { searchParams: Pro
                 <td>
                   <ClientRowActions client={c} />
                 </td>
-              </tr>
+              </Tr>
             ))}
             {!clients.length ? (
               <tr>
-                <td colSpan={9} className="py-8 text-center text-muted">
-                  Nenhum cliente encontrado.
+                <td colSpan={9}>
+                  <EmptyState icon={<Users size={18} />} title="Nenhum cliente encontrado" text="Cadastre o primeiro cliente acima; depois crie o login e vincule os domínios dele." />
                 </td>
               </tr>
             ) : null}

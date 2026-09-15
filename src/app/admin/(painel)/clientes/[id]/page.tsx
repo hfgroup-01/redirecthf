@@ -6,6 +6,7 @@ import { ClientDomains } from "@/components/ClientDomains";
 import { ClientForm } from "@/components/ClientForm";
 import { BulkLinkActions, LinkQuickActions } from "@/components/LinkActions";
 import { LinkForm } from "@/components/LinkForm";
+import { Tr } from "@/components/motion";
 import { Badge, PageHeader, fmtData } from "@/components/ui";
 import { CreateUserForm, UsersTable } from "@/components/UserForms";
 import { requirePanelAdmin } from "@/lib/auth";
@@ -101,8 +102,8 @@ export default async function ClientePage({ params }: { params: Promise<{ id: st
             </tr>
           </thead>
           <tbody>
-            {links.map((l) => (
-              <tr key={l.id}>
+            {links.map((l, i) => (
+              <Tr key={l.id} i={i}>
                 <td>
                   <Link href={`/admin/links/${l.id}`} className="mono font-medium hover:underline">
                     /{l.code}
@@ -122,7 +123,7 @@ export default async function ClientePage({ params }: { params: Promise<{ id: st
                 <td>
                   <LinkQuickActions link={l} />
                 </td>
-              </tr>
+              </Tr>
             ))}
             {!links.length ? (
               <tr>

@@ -51,6 +51,7 @@ export function ClientDomains({ client, domains, unassigned }: { client: Client;
                       className="btn btn-sm"
                       disabled={ocupado}
                       title="Desvincular do cliente (os links do domínio ficam sem dono)"
+                      aria-label="Desvincular domínio"
                       onClick={() => {
                         if (confirm(`Desvincular ${d.hostname} de ${client.name}? Os links desse domínio deixam de aparecer para o cliente.`)) void atribuir(d.id, null);
                       }}

@@ -1,19 +1,26 @@
 @import "tailwindcss";
 
+/*
+  Design system do painel HF (dark, "minimal swiss" para dashboard):
+  fundo azul-grafite, superfícies em camadas, azul como acento único,
+  verde/âmbar/vermelho só para estado. Fontes: Inter (UI) e JetBrains Mono (códigos).
+*/
 @theme {
-  --color-bg: #0e1117;
-  --color-panel: #151a23;
-  --color-panel-2: #1b2130;
-  --color-border: #262e3d;
-  --color-text: #e7eaf0;
-  --color-muted: #8d97aa;
+  --color-bg: #0b0f17;
+  --color-panel: #121826;
+  --color-panel-2: #182032;
+  --color-border: #253046;
+  --color-text: #e6eaf2;
+  --color-muted: #8b95a8;
   --color-accent: #3b82f6;
   --color-accent-2: #2563eb;
   --color-ok: #22c55e;
   --color-warn: #f59e0b;
   --color-danger: #ef4444;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Inter, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 1px 2px 0 rgb(0 0 0 / 0.35);
+  --shadow-pop: 0 10px 30px -12px rgb(0 0 0 / 0.6);
 }
 
 html,
@@ -22,49 +29,129 @@ body {
 }
 
 body {
-  background: var(--color-bg);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgb(59 130 246 / 0.07), transparent 60%),
+    var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
-/* Componentes utilitários simples (sem lib de UI). */
+/* Foco visível para teclado, sem anel no clique do mouse. */
+:where(a, button, input, select, textarea, [role="switch"]):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 80%, white);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+/* Barra de rolagem discreta (WebKit/Blink). */
+*::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border: 2px solid var(--color-bg);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Componentes utilitários (sem lib de UI). Transições só em cor/opacidade/transform. */
 .btn {
-  @apply inline-flex items-center justify-center gap-2 rounded-md border border-border bg-panel-2 px-3 py-1.5 text-sm font-medium text-text transition hover:bg-border disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-panel-2 px-3 py-1.5 text-sm font-medium text-text transition-[background-color,border-color,color,transform,box-shadow] duration-200 hover:border-border hover:bg-border/80 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
+  min-height: 2.25rem;
 }
 .btn-primary {
-  @apply border-accent-2 bg-accent text-white hover:bg-accent-2;
+  @apply border-accent-2 bg-accent text-white shadow-[0_1px_0_0_rgb(255_255_255_/_0.12)_inset] hover:border-accent-2 hover:bg-accent-2;
 }
 .btn-danger {
-  @apply border-danger/40 bg-danger/10 text-red-300 hover:bg-danger/20;
+  @apply border-danger/40 bg-danger/10 text-red-300 hover:border-danger/60 hover:bg-danger/20;
+}
+.btn-ghost {
+  @apply border-transparent bg-transparent text-muted hover:bg-panel-2 hover:text-text;
 }
 .btn-sm {
   @apply px-2 py-1 text-xs;
+  min-height: 1.875rem;
 }
 .input {
-  @apply w-full rounded-md border border-border bg-bg px-3 py-2 text-sm text-text placeholder:text-muted/70 focus:border-accent focus:outline-none;
+  @apply w-full rounded-md border border-border bg-bg px-3 py-2 text-sm text-text transition-[border-color,box-shadow] duration-200 placeholder:text-muted/60 focus:border-accent focus:shadow-[0_0_0_3px_rgb(59_130_246_/_0.2)] focus:outline-none disabled:cursor-not-allowed disabled:opacity-60;
+  min-height: 2.5rem;
+}
+select.input {
+  @apply cursor-pointer pr-8;
+}
+textarea.input {
+  min-height: auto;
 }
 .label {
-  @apply mb-1 block text-xs font-medium uppercase tracking-wide text-muted;
+  @apply mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-muted;
 }
 .card {
-  @apply rounded-lg border border-border bg-panel p-4;
+  @apply rounded-xl border border-border bg-panel p-4 shadow-[var(--shadow-card)];
+}
+.card-hover {
+  @apply transition-[border-color,transform,box-shadow] duration-200 hover:border-accent/40 hover:shadow-[var(--shadow-pop)];
 }
 .badge {
-  @apply inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide;
+  @apply inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide;
 }
 .table {
   @apply w-full border-collapse text-sm;
 }
 .table th {
-  @apply border-b border-border px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted;
+  @apply sticky top-0 z-10 border-b border-border bg-panel px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted;
 }
 .table td {
-  @apply border-b border-border/60 px-3 py-2 align-middle;
+  @apply border-b border-border/60 px-3 py-2.5 align-middle;
 }
-.table tr:hover td {
+.table tbody tr {
+  @apply transition-colors duration-150;
+}
+.table tbody tr:hover td {
   @apply bg-panel-2/60;
+}
+.table tbody tr:last-child td {
+  @apply border-b-0;
 }
 .mono {
   font-family: var(--font-mono);
+  font-variant-ligatures: none;
+}
+.kbd {
+  @apply rounded border border-border bg-bg px-1.5 py-0.5 font-mono text-[11px] text-muted;
+}
+.skeleton {
+  @apply animate-pulse rounded-md bg-panel-2;
+}
+details > summary {
+  @apply cursor-pointer list-none;
+}
+details > summary::-webkit-details-marker {
+  display: none;
+}
+details > summary::before {
+  content: "";
+  @apply mr-2 inline-block h-1.5 w-1.5 rounded-full bg-accent align-middle transition-transform duration-200;
+}
+details[open] > summary::before {
+  @apply scale-125 bg-green-400;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

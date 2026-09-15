@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, m } from "framer-motion";
 import { Check, Copy } from "lucide-react";
 import { useState } from "react";
 
@@ -8,7 +9,9 @@ export function CopyButton({ text, label = "Copiar", small = true }: { text: str
   return (
     <button
       type="button"
-      className={`btn ${small ? "btn-sm" : ""}`}
+      className={`btn ${small ? "btn-sm" : ""} ${ok ? "border-ok/40 text-green-300" : ""}`}
+      aria-label={`${label}: ${text}`}
+      aria-live="polite"
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(text);
@@ -20,8 +23,19 @@ export function CopyButton({ text, label = "Copiar", small = true }: { text: str
       }}
       title={text}
     >
-      {ok ? <Check size={14} /> : <Copy size={14} />}
-      {ok ? "Copiado" : label}
+      <AnimatePresence mode="wait" initial={false}>
+        <m.span
+          key={ok ? "ok" : "copy"}
+          className="inline-flex items-center gap-2"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          transition={{ duration: 0.15 }}
+        >
+          {ok ? <Check size={14} /> : <Copy size={14} />}
+          {ok ? "Copiado" : label}
+        </m.span>
+      </AnimatePresence>
     </button>
   );
 }

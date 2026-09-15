@@ -130,6 +130,7 @@ export function WildcardActions({ wildcard }: { wildcard: Wildcard }) {
           className="btn btn-sm btn-danger"
           disabled={ocupado !== null}
           title="Remover do HF (o registro * na Cloudflare fica)"
+          aria-label="Remover zona curinga"
           onClick={async () => {
             if (!confirm(`Remover a zona curinga ${wildcard.baseHostname} do HF? O registro * na Cloudflare não é apagado.`)) return;
             setOcupado("del");

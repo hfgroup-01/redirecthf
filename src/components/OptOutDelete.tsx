@@ -14,6 +14,7 @@ export function OptOutDelete({ id }: { id: number }) {
       className="btn btn-sm btn-danger"
       disabled={ocupado}
       title="Remover este registro"
+      aria-label="Remover este pedido de opt-out"
       onClick={async () => {
         if (!confirm("Remover este pedido de opt-out?")) return;
         setOcupado(true);

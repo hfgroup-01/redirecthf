@@ -55,6 +55,7 @@ export function LinkQuickActions({ link }: { link: Link }) {
         className="btn btn-sm btn-danger"
         disabled={ocupado}
         title="Excluir link"
+        aria-label="Excluir link"
         onClick={async () => {
           if (!confirm(`Excluir o link /${link.code}? Quem clicar verá a página white (404).`)) return;
           setOcupado(true);

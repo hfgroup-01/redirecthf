@@ -18,6 +18,7 @@ export function ClientDeleteButton({ client, compact = false }: { client: Client
       className="btn btn-sm btn-danger"
       disabled={ocupado}
       title="Excluir cliente"
+      aria-label="Excluir cliente"
       onClick={async () => {
         const n = client.linksCount ?? 0;
         const aviso =
@@ -83,6 +84,7 @@ export function ImpersonateButton({ client, compact = false }: { client: Client;
       className="btn btn-sm"
       disabled={ocupado}
       title="Ver o painel como este cliente"
+      aria-label="Entrar como cliente"
       onClick={async () => {
         setOcupado(true);
         try {

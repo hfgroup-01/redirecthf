@@ -1,6 +1,8 @@
+import { Globe } from "lucide-react";
 import Link from "next/link";
 import { DomainActions, DomainCreateForm, DomainSwitch } from "@/components/DomainForms";
-import { Badge, PageHeader, fmtData, statusDominio } from "@/components/ui";
+import { Tr } from "@/components/motion";
+import { Badge, EmptyState, PageHeader, fmtData, statusDominio } from "@/components/ui";
 import { WildcardActions, WildcardCreateForm } from "@/components/WildcardForms";
 import { escopo, requirePanelUser } from "@/lib/auth";
 import { getSettingsView } from "@/lib/settings";
@@ -116,10 +118,10 @@ export default async function DominiosPage() {
             </tr>
           </thead>
           <tbody>
-            {domains.map((d) => {
+            {domains.map((d, i) => {
               const st = statusDominio(d.status);
               return (
-                <tr key={d.id}>
+                <Tr key={d.id} i={i}>
                   <td>
                     <Link href={`/admin/dominios/${d.id}`} className="mono font-medium hover:underline">
                       {d.hostname}
@@ -159,13 +161,13 @@ export default async function DominiosPage() {
                   <td>
                     <DomainActions domain={d} compact role={actor.role} />
                   </td>
-                </tr>
+                </Tr>
               );
             })}
             {!domains.length ? (
               <tr>
-                <td colSpan={admin ? 9 : 8} className="py-8 text-center text-muted">
-                  {admin ? "Nenhum domínio cadastrado." : "Nenhum domínio vinculado ao seu acesso. Fale com o administrador."}
+                <td colSpan={admin ? 9 : 8}>
+                  <EmptyState icon={<Globe size={18} />} title={admin ? "Nenhum domínio cadastrado" : "Nenhum domínio vinculado"} text={admin ? "Cadastre a zona curinga e adicione o primeiro subdomínio de BM." : "Fale com o administrador para vincular o subdomínio da sua BM."} />
                 </td>
               </tr>
             ) : null}

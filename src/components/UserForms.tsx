@@ -171,6 +171,7 @@ export function UsersTable({ users, showRole = false, meId }: { users: UserView[
                       className="btn btn-sm btn-danger"
                       disabled={ocupado !== null || u.id === meId}
                       title="Apagar login"
+                      aria-label="Apagar login"
                       onClick={() => {
                         if (!confirm(`Apagar o login ${u.email}?`)) return;
                         void chamar(u.id, async () => void (await api(`/api/v1/users/${u.id}`, { method: "DELETE" })));

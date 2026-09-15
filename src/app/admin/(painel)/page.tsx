@@ -1,6 +1,8 @@
+import { Activity, Globe, Link2, MousePointerClick } from "lucide-react";
 import Link from "next/link";
 import { BarrasDiarias } from "@/components/Chart";
 import { CopyButton } from "@/components/CopyButton";
+import { Reveal, Tr } from "@/components/motion";
 import { Badge, PageHeader, Stat, fmtData, statusDominio } from "@/components/ui";
 import { escopo, requirePanelUser } from "@/lib/auth";
 import { ADMIN_SCOPE } from "@/lib/scope";
@@ -60,10 +62,10 @@ export default async function DashboardPage() {
       ) : null}
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Cliques hoje" value={o.clicksToday} />
-        <Stat label="Cliques 7 dias" value={o.clicks7d} sub={`${o.clicks30d} em 30 dias`} />
-        <Stat label="Links ativos" value={o.linksActive} sub={`${o.linksTotal} no total · ${o.clientsTotal} clientes`} />
-        <Stat label="Domínios no ar" value={o.domainsActive} sub={`${o.domainsTotal} cadastrados`} />
+        <Reveal i={0}><Stat label="Cliques hoje" value={o.clicksToday} icon={<MousePointerClick size={14} />} /></Reveal>
+        <Reveal i={1}><Stat label="Cliques 7 dias" value={o.clicks7d} sub={`${o.clicks30d} em 30 dias`} icon={<Activity size={14} />} /></Reveal>
+        <Reveal i={2}><Stat label="Links ativos" value={o.linksActive} sub={`${o.linksTotal} no total · ${o.clientsTotal} clientes`} icon={<Link2 size={14} />} /></Reveal>
+        <Reveal i={3}><Stat label="Domínios no ar" value={o.domainsActive} sub={`${o.domainsTotal} cadastrados`} icon={<Globe size={14} />} /></Reveal>
       </div>
 
       <GraficosETabelas o={o} />
@@ -101,10 +103,10 @@ async function InicioCliente({ clientId, nome }: { clientId: string; nome: strin
       ) : null}
 
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label="Cliques hoje" value={o.clicksToday} />
-        <Stat label="Cliques 7 dias" value={o.clicks7d} sub={`${o.clicks30d} em 30 dias`} />
-        <Stat label="Links ativos" value={o.linksActive} sub={`${o.linksTotal} no total`} />
-        <Stat label="Domínios no ar" value={o.domainsActive} sub={`${o.domainsTotal} vinculados`} />
+        <Reveal i={0}><Stat label="Cliques hoje" value={o.clicksToday} icon={<MousePointerClick size={14} />} /></Reveal>
+        <Reveal i={1}><Stat label="Cliques 7 dias" value={o.clicks7d} sub={`${o.clicks30d} em 30 dias`} icon={<Activity size={14} />} /></Reveal>
+        <Reveal i={2}><Stat label="Links ativos" value={o.linksActive} sub={`${o.linksTotal} no total`} icon={<Link2 size={14} />} /></Reveal>
+        <Reveal i={3}><Stat label="Domínios no ar" value={o.domainsActive} sub={`${o.domainsTotal} vinculados`} icon={<Globe size={14} />} /></Reveal>
       </div>
 
       <div className="card mb-6">
@@ -190,8 +192,8 @@ function GraficosETabelas({ o }: { o: Overview }) {
                 </tr>
               </thead>
               <tbody>
-                {o.recentClicks.map((c) => (
-                  <tr key={c.id}>
+                {o.recentClicks.map((c, i) => (
+                  <Tr key={c.id} i={i}>
                     <td className="whitespace-nowrap text-muted">{fmtData(c.ts)}</td>
                     <td>
                       <Link href={`/admin/links/${c.linkId}`} className="mono hover:underline">
@@ -207,7 +209,7 @@ function GraficosETabelas({ o }: { o: Overview }) {
                     <td className="max-w-[260px] truncate text-xs text-muted" title={c.ua ?? ""}>
                       {c.ua ?? "—"}
                     </td>
-                  </tr>
+                  </Tr>
                 ))}
               </tbody>
             </table>
