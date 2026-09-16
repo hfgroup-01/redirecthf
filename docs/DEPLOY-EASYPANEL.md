@@ -43,20 +43,23 @@ No projeto **crm**: **+ Serviço → App**.
 
 **Nome**: `cloudflared`
 
-**Source** → aba **Docker Image**:
+**Source** → aba **GitHub**: repositório `hfgroup-01/redirecthf`, branch `main`, e em **Build**
+escolha **Dockerfile** com o caminho:
 
 ```
-cloudflare/cloudflared:latest
+docker/cloudflared.Dockerfile
 ```
 
-**Advanced → Command** (o `cloudflared` já é o executável da imagem; aqui vão só os argumentos):
+**Advanced → Command**: deixe **vazio**.
 
-```
-tunnel --config /etc/cloudflared/config.yml run
-```
-
-> Se o log acusar comando desconhecido, troque por
-> `cloudflared tunnel --config /etc/cloudflared/config.yml run`.
+> **Por que não usar a imagem `cloudflare/cloudflared:latest` direto.** O EasyPanel não passa o
+> campo Comando para o container: ele o envolve em `/bin/sh -c "..."` (dá para ver em
+> `docker service inspect crm_cloudflared`, no campo `Command`). A imagem oficial do cloudflared é
+> **distroless** — só o binário, sem `/bin/sh`. O container morre antes de o processo existir, sem
+> escrever uma linha de log, e o Swarm fica reiniciando: status amarelo, aba de logs vazia.
+> Deixar o Comando vazio também não serve, porque o `CMD` da imagem é `["version"]`: ele imprimiria
+> a versão e sairia. Por isso o `docker/cloudflared.Dockerfile`, que põe os argumentos no
+> `ENTRYPOINT` e dispensa o campo Comando.
 
 **Mounts → Add Mount → File** (dois arquivos):
 
@@ -65,12 +68,17 @@ tunnel --config /etc/cloudflared/config.yml run
 ```yaml
 tunnel: 20529d8f-a352-43ba-9656-b030a5ae142a
 credentials-file: /etc/cloudflared/credentials.json
+no-autoupdate: true
+loglevel: info
 ingress:
   - service: http://crm_hfredirect:3100
 ```
 
 O ingress sem hostname é *catch-all*: qualquer domínio apontado para o túnel chega ao HF, sem
 precisar mexer no túnel a cada BM nova.
+
+> O serviço **precisa ser criado dentro do projeto `crm`**. O nome `crm_hfredirect` só é resolvido
+> por containers da mesma rede; num projeto diferente o túnel conecta mas devolve 502 em tudo.
 
 2. Caminho `/etc/cloudflared/credentials.json`, conteúdo: o JSON copiado no passo 1.
 
@@ -95,8 +103,18 @@ Erros comuns:
 |---|---|
 | `failed to sufficiently increase receive buffer size` | aviso normal do QUIC, pode ignorar |
 | `Unauthorized: Failed to get tunnel` | o `credentials.json` foi colado errado ou incompleto |
-| `dial tcp: lookup ...: no such host` | o nome no `ingress` está diferente de `crm_hfredirect` |
+| `dial tcp: lookup ...: no such host` | o nome no `ingress` está diferente de `crm_hfredirect`, ou o serviço foi criado fora do projeto `crm` |
 | `connection refused` | o serviço `hfredirect` está parado ou fora da porta 3100 |
+| `Cannot determine default origin certificate path` | o `--config` não chegou ou o `config.yml` não foi montado em `/etc/cloudflared/` |
+| **status amarelo e nenhum log** | o campo Comando foi preenchido — a imagem não tem shell (seção 2). Confira com `docker service ps crm_cloudflared --no-trunc` na VPS: fica ciclando em `Preparing`/`Ready` sem chegar a `Running` |
+
+**Diagnóstico pelo navegador**, sem abrir o log (teste com o HF do PC **fechado**):
+
+| O que aparece em `https://lumix10.cfd/hf/ping` | Significa |
+|---|---|
+| erro 1033 (HTTP 530) | nenhum conector ativo — o container não sobe (loop de reinício) |
+| erro 502 | o conector está de pé, mas não alcança `crm_hfredirect:3100` — é rede/nome/porta |
+| `{"hf":true,...}` | funcionando |
 
 Com o túnel de pé, ele passa a ter **dois conectores** (PC e VPS) e a Cloudflare divide os acessos
 entre eles. Isso é normal durante a troca.
