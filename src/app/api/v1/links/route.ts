@@ -1,7 +1,9 @@
 import type { NextRequest } from "next/server";
 import { escopo } from "@/lib/auth";
+import { forbidden } from "@/lib/errors";
 import { badRequest, bool, json, protegido, readJson, str, validarUrl } from "@/lib/http";
 import { ADMIN_SCOPE } from "@/lib/scope";
+import { garantirSubdominio } from "@/lib/subdominio";
 import { getClient, getClientBySlug } from "@/lib/stores/clients";
 import { listDomains } from "@/lib/stores/domains";
 import { createLink, listLinks } from "@/lib/stores/links";
@@ -33,6 +35,8 @@ export interface LinkBody {
   clientId?: string | null;
   clientSlug?: string;
   domainId?: string | null;
+  /** No lugar de domainId: cria (ou reaproveita) `<label>.<base>` numa zona curinga. Admin. */
+  subdomain?: { label?: string; base?: string; provision?: boolean };
   code?: string;
   label?: string | null;
   destinationUrl?: string | null;
@@ -61,8 +65,14 @@ export const POST = protegido(async (req: NextRequest, actor) => {
   const mode: LinkMode = b.mode === "page" ? "page" : "redirect";
   const destino = validarUrl(str(b.destinationUrl) || (mode === "redirect" ? client?.defaultUrl ?? "" : ""), "URL de destino");
 
-  // Domínio: o informado -> o padrão do cliente -> o único disponível.
+  // Domínio: subdomínio novo de zona curinga -> o informado -> o padrão do cliente -> o único disponível.
+  const sub = b.subdomain;
   let domainId = str(b.domainId) || client?.defaultDomainId || null;
+  if (sub && (str(sub.label) || str(sub.base))) {
+    if (scope.clientId) throw forbidden("Só o administrador cadastra domínios.");
+    const r = await garantirSubdominio({ label: str(sub.label), base: str(sub.base), clientId, provision: sub.provision !== false });
+    domainId = r.domain.id;
+  }
   if (!domainId) {
     const ds = client ? await listDomains(ADMIN_SCOPE, { clientId: client.id }) : await listDomains(ADMIN_SCOPE, { unassigned: true });
     if (ds.length === 1) domainId = ds[0].id;

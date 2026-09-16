@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/components/api";
 import { CopyButton } from "@/components/CopyButton";
 import { Field, Msg } from "@/components/ui";
-import type { Client, Domain, Link, LinkMode, Role } from "@/lib/types";
+import type { Client, Domain, Link, LinkMode, Role, Wildcard } from "@/lib/types";
 
 interface Props {
   link?: Link;
@@ -13,8 +13,22 @@ interface Props {
   clients: Client[];
   /** Domínios visíveis: admin = todos; cliente = só os dele. */
   domains: Domain[];
+  /** Zonas curinga prontas (só admin): permitem criar a BM aqui mesmo. */
+  wildcards?: Wildcard[];
   defaultClientId?: string;
   role: Role;
+}
+
+/** Valor sentinela do select de domínio para "cadastrar a BM agora". */
+const NOVO = "__novo";
+
+/** "Driggo Restaurante" -> "driggorestaurante": o hostname não aceita espaço nem acento. */
+function normalizarLabel(v: string): string {
+  return v
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9-]/g, "");
 }
 
 function valores(link: Link | undefined, cliente: Client | undefined, defaultClientId?: string) {
@@ -32,7 +46,7 @@ function valores(link: Link | undefined, cliente: Client | undefined, defaultCli
   };
 }
 
-export function LinkForm({ link, clients, domains, defaultClientId, role }: Props) {
+export function LinkForm({ link, clients, domains, wildcards = [], defaultClientId, role }: Props) {
   const router = useRouter();
   const clienteInicial = clients.find((c) => c.id === (link?.clientId ?? defaultClientId));
   const [f, setF] = useState(() => valores(link, clienteInicial, defaultClientId));
@@ -40,6 +54,13 @@ export function LinkForm({ link, clients, domains, defaultClientId, role }: Prop
   const [criado, setCriado] = useState<Link | null>(null);
   const [salvando, setSalvando] = useState(false);
   const up = (k: keyof typeof f, v: string | boolean) => setF({ ...f, [k]: v });
+
+  // Cadastrar a BM junto com o link: só faz sentido criando, e só para o admin.
+  const zonas = wildcards.filter((w) => w.status === "active" || w.status === "dns_ok");
+  const podeCriarSub = !link && role === "admin" && zonas.length > 0;
+  const [sub, setSub] = useState({ ligado: false, label: "", base: "" });
+  const subBase = sub.base || zonas[0]?.baseHostname || "";
+  const subHost = sub.label && subBase ? `${sub.label}.${subBase}` : "";
 
   // O servidor mandou dados novos (ex.: o modo foi trocado pelos botões da linha):
   // recarrega o formulário, senão o próximo "Salvar" desfaria a mudança.
@@ -61,14 +82,17 @@ export function LinkForm({ link, clients, domains, defaultClientId, role }: Prop
         setMsg(null);
         setSalvando(true);
         try {
-          const body = role === "admin" ? { ...f, domainId: domainIdValido } : { ...f, clientId: undefined, domainId: domainIdValido };
+          const base = role === "admin" ? { ...f, domainId: domainIdValido } : { ...f, clientId: undefined, domainId: domainIdValido };
+          const body = sub.ligado ? { ...base, domainId: undefined, subdomain: { label: sub.label, base: subBase } } : base;
           if (link) {
             await api(`/api/v1/links/${link.id}`, { method: "PATCH", body });
             setMsg({ tipo: "ok", texto: "Link salvo." });
           } else {
             const r = await api<{ link: Link }>("/api/v1/links", { body });
             setCriado(r.link);
-            setF({ ...f, code: "", label: "" });
+            // Fica no domínio recém-criado: o normal é cadastrar vários links na mesma BM.
+            setF({ ...f, code: "", label: "", domainId: r.link.domainId ?? f.domainId });
+            setSub({ ligado: false, label: "", base: subBase });
             setMsg({ tipo: "ok", texto: `Link criado: ${r.link.url ?? r.link.code}` });
           }
           router.refresh();
@@ -104,12 +128,23 @@ export function LinkForm({ link, clients, domains, defaultClientId, role }: Prop
           hint={
             dominiosVisiveis.length
               ? "O código só funciona neste domínio: a URL do template é https://<domínio>/{{1}}."
-              : role === "admin"
-                ? "Nenhum domínio com esse dono. Vincule um domínio ao cliente em Domínios."
-                : "Nenhum domínio vinculado a você ainda. Fale com o administrador."
+              : podeCriarSub
+                ? "Nenhum domínio com esse dono ainda — use “cadastrar a BM agora”."
+                : role === "admin"
+                  ? "Nenhum domínio com esse dono. Vincule um domínio ao cliente em Domínios."
+                  : "Nenhum domínio vinculado a você ainda. Fale com o administrador."
           }
         >
-          <select className="input" value={domainIdValido} onChange={(e) => up("domainId", e.target.value)} required>
+          <select
+            className="input"
+            value={sub.ligado ? NOVO : domainIdValido}
+            onChange={(e) => {
+              const v = e.target.value;
+              setSub({ ...sub, ligado: v === NOVO });
+              if (v !== NOVO) up("domainId", v);
+            }}
+            required
+          >
             <option value="">— escolha —</option>
             {dominiosVisiveis.map((d) => (
               <option key={d.id} value={d.id}>
@@ -117,8 +152,34 @@ export function LinkForm({ link, clients, domains, defaultClientId, role }: Prop
                 {d.status !== "active" ? ` (${d.status})` : ""}
               </option>
             ))}
+            {podeCriarSub ? <option value={NOVO}>+ cadastrar a BM agora…</option> : null}
           </select>
         </Field>
+        {sub.ligado ? (
+          <>
+            <Field
+              label="Nome da BM"
+              hint={subHost ? `O domínio ${subHost} é criado junto com o link.` : "Só letras, números e hífen. Ex.: driggorestaurante"}
+            >
+              <input
+                className="input mono"
+                required
+                value={sub.label}
+                onChange={(e) => setSub({ ...sub, label: normalizarLabel(e.target.value) })}
+                placeholder="driggorestaurante"
+              />
+            </Field>
+            <Field label="Zona curinga" hint="A zona já tem o DNS pronto: o subdomínio nasce funcionando.">
+              <select className="input" value={subBase} onChange={(e) => setSub({ ...sub, base: e.target.value })}>
+                {zonas.map((w) => (
+                  <option key={w.id} value={w.baseHostname}>
+                    *.{w.baseHostname}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </>
+        ) : null}
         <Field label="Código" hint={link ? "Trocar o código quebra links já enviados." : "Vazio = gerado (6 caracteres). Ex.: promo-abril"}>
           <input className="input mono" value={f.code} onChange={(e) => up("code", e.target.value)} placeholder="automático" />
         </Field>
@@ -158,7 +219,7 @@ export function LinkForm({ link, clients, domains, defaultClientId, role }: Prop
       </div>
       {msg ? <Msg tipo={msg.tipo}>{msg.texto}</Msg> : null}
       <div className="flex flex-wrap items-center gap-2">
-        <button className="btn btn-primary" disabled={salvando || !domainIdValido}>
+        <button className="btn btn-primary" disabled={salvando || (sub.ligado ? !sub.label || !subBase : !domainIdValido)}>
           {salvando ? "Salvando…" : link ? "Salvar" : "Criar link"}
         </button>
         {criado?.url ? <CopyButton text={criado.url} label="Copiar URL criada" small={false} /> : null}

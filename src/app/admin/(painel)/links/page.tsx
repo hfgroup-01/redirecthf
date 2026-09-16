@@ -9,6 +9,7 @@ import { escopo, requirePanelUser } from "@/lib/auth";
 import { listClients } from "@/lib/stores/clients";
 import { listDomains } from "@/lib/stores/domains";
 import { listLinks } from "@/lib/stores/links";
+import { listWildcards } from "@/lib/stores/wildcards";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export default async function LinksPage({ searchParams }: { searchParams: Promis
   const admin = actor.role === "admin";
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
-  const [r, clients, domains] = await Promise.all([
+  const [r, clients, domains, wildcards] = await Promise.all([
     listLinks(
       {
         clientId: sp.clientId || undefined,
@@ -42,6 +43,7 @@ export default async function LinksPage({ searchParams }: { searchParams: Promis
     ),
     admin ? listClients() : Promise.resolve([]),
     listDomains(scope),
+    admin ? listWildcards() : Promise.resolve([]),
   ]);
   const totalPaginas = Math.max(1, Math.ceil(r.total / r.pageSize));
   const qs = (p: number) => {
@@ -61,7 +63,7 @@ export default async function LinksPage({ searchParams }: { searchParams: Promis
       <details className="card mb-6" open={r.total === 0}>
         <summary className="cursor-pointer text-sm font-semibold">+ Novo link</summary>
         <div className="mt-4">
-          <LinkForm clients={clients} domains={domains} role={actor.role} defaultClientId={scope.clientId ?? undefined} />
+          <LinkForm clients={clients} domains={domains} wildcards={wildcards} role={actor.role} defaultClientId={scope.clientId ?? undefined} />
         </div>
       </details>
 

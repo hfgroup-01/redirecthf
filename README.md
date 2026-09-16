@@ -133,7 +133,7 @@ o escopo dele; a chave de API é admin.
 | GET/POST | `/api/v1/clients` · `/api/v1/clients/:idOuSlug` (PATCH/DELETE) | clientes (admin) |
 | GET/POST | `/api/v1/users` · `/api/v1/users/:id` (PATCH/DELETE) · `/api/v1/users/:id/reset-password` | logins (admin) |
 | POST/DELETE | `/api/v1/auth/impersonate` | admin entra como cliente / volta |
-| GET/POST | `/api/v1/links` · `/api/v1/links/:idOuCodigo?host=` (PATCH/DELETE) | links (`domainId` obrigatório; `?host=` se o código existe em vários domínios) |
+| GET/POST | `/api/v1/links` · `/api/v1/links/:idOuCodigo?host=` (PATCH/DELETE) | links (`domainId` obrigatório, ou `subdomain: { label, base }` para criar a BM junto; `?host=` se o código existe em vários domínios) |
 | POST | `/api/v1/links/bulk` | `{ clientId | ids[], destinationUrl?, mode?, active? }` |
 | GET | `/api/v1/links/:id/clicks?page=` | log de cliques |
 | GET/POST/DELETE | `/api/v1/links/:id/targets` · POST `…/targets/import` (CSV, `?retorno=csv`) · GET `…/targets/export` | destinos por lead |
@@ -153,6 +153,21 @@ POST /api/v1/links
 { "clientSlug": "clinica-sorriso", "destinationUrl": "https://wa.me/5511999990000", "label": "set/26" }
 → { "link": { "code": "k7m2pq", "url": "https://clinica.lumix10.cfd/k7m2pq", ... } }
 ```
+
+**BM nova em uma chamada.** No lugar de `domainId`, mande `subdomain`: o HF cadastra
+`<label>.<base>` na zona curinga (que já tem o `*` no DNS, então nasce pronto) e cria o link nele.
+Se o domínio já existir e for do mesmo cliente, reaproveita — dá para chamar em lote sem verificar
+antes o que já foi criado. O `label` aceita o nome da BM como está na planilha:
+
+```json
+POST /api/v1/links
+{ "clientSlug": "bruno", "subdomain": { "label": "Driggo Restaurante", "base": "lumix11.cfd" },
+  "destinationUrl": "https://atendimento.marketing/order/{lead}" }
+→ { "link": { "url": "https://driggorestaurante.lumix11.cfd/k7m2pq", ... } }
+```
+
+Só administrador. `subdomain.provision: false` pula a checagem de alcance (1 request por BM), útil
+ao criar centenas de uma vez.
 
 ## Teste ponta a ponta
 

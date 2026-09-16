@@ -16,6 +16,7 @@ import { getClient, listClients } from "@/lib/stores/clients";
 import { listDomains } from "@/lib/stores/domains";
 import { listLinks } from "@/lib/stores/links";
 import { listUsers } from "@/lib/stores/users";
+import { listWildcards } from "@/lib/stores/wildcards";
 
 export const dynamic = "force-dynamic";
 
@@ -24,13 +25,14 @@ export default async function ClientePage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const client = await getClient(id);
   if (!client) notFound();
-  const [domains, semDono, clients, users, linksPag, serie] = await Promise.all([
+  const [domains, semDono, clients, users, linksPag, serie, wildcards] = await Promise.all([
     listDomains(ADMIN_SCOPE, { clientId: client.id }),
     listDomains(ADMIN_SCOPE, { unassigned: true }),
     listClients(),
     listUsers({ clientId: client.id }),
     listLinks({ clientId: client.id, pageSize: 200 }, ADMIN_SCOPE),
     serieDiaria(14, undefined, client.id),
+    listWildcards(),
   ]);
   const links = linksPag.items;
 
@@ -80,7 +82,7 @@ export default async function ClientePage({ params }: { params: Promise<{ id: st
       <div className="mb-6 grid gap-4 lg:grid-cols-2">
         <div className="card">
           <h2 className="mb-3 text-sm font-semibold">Novo link para este cliente</h2>
-          <LinkForm clients={clients} domains={domains} defaultClientId={client.id} role="admin" />
+          <LinkForm clients={clients} domains={domains} wildcards={wildcards} defaultClientId={client.id} role="admin" />
         </div>
         <div className="card">
           <h2 className="mb-3 text-sm font-semibold">Ações em massa</h2>

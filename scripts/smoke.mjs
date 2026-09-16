@@ -466,6 +466,31 @@ let linkX2 = null;
   ok(statsAdmin.status === 200 && statsAdmin.json?.domainsTotal >= 3, "stats do admin veem tudo");
 }
 
+// 15b. link criando a BM junto (atalho de escala: 1 passo em vez de 2)
+let domSub = null;
+{
+  const novo = { clientId: c1.id, subdomain: { label: "Driggo Restaurante", base: BASE_CURINGA, provision: false }, destinationUrl: "https://exemplo.com/driggo" };
+  const r = await call("/api/v1/links", { method: "POST", body: novo });
+  ok(r.status === 201, "link com subdomínio novo -> 201");
+  const host = `driggorestaurante.${BASE_CURINGA}`;
+  ok(r.json?.link?.url === `https://${host}/${r.json?.link?.code}`, `BM criada junto com o link: ${host}`);
+  const ds = await call(`/api/v1/domains?clientId=${c1.id}`);
+  const achado = (ds.json?.domains ?? []).find((d) => d.hostname === host);
+  domSub = achado ?? null;
+  ok(Boolean(achado) && achado.clientId === c1.id, "domínio nasceu no cliente certo");
+
+  // Segundo link na mesma BM: reaproveita o domínio em vez de tentar criar de novo.
+  const r2 = await call("/api/v1/links", { method: "POST", body: { ...novo, code: "segundo" } });
+  ok(r2.status === 201 && r2.json?.link?.domainId === domSub?.id, "segunda BM igual reaproveita o domínio");
+
+  const r3 = await call("/api/v1/links", { method: "POST", body: { ...novo, subdomain: { label: "", base: BASE_CURINGA } } });
+  ok(r3.status === 400, "nome de BM vazio -> 400");
+  const r4 = await call("/api/v1/links", { method: "POST", body: { ...novo, subdomain: { label: "bm", base: "zona-que-nao-existe.com" } } });
+  ok(r4.status === 400, "zona curinga inexistente -> 400");
+  const r5 = await call("/api/v1/links", { method: "POST", body: { subdomain: { label: "bmdocliente", base: BASE_CURINGA }, destinationUrl: "https://exemplo.com" }, jar: cliente });
+  ok(r5.status === 403, "cliente não cadastra domínio -> 403");
+}
+
 // 16. reset de senha derruba a sessão
 {
   const r = await call(`/api/v1/users/${userC1.id}/reset-password`, { method: "POST" });
@@ -494,6 +519,7 @@ let linkX2 = null;
   const da = await call(`/api/v1/domains/${domA.id}`, { method: "DELETE" });
   const db = await call(`/api/v1/domains/${domB.id}`, { method: "DELETE" });
   const dw = await call(`/api/v1/domains/${domainWc.id}`, { method: "DELETE" });
+  if (domSub) await call(`/api/v1/domains/${domSub.id}?force=1`, { method: "DELETE" });
   ok(da.status === 200 && db.status === 200 && dw.status === 200, "domínios removidos");
   const w = await call(`/api/v1/wildcards/${wildcardId}`, { method: "DELETE" });
   ok(w.status === 200, "zona curinga removida");
