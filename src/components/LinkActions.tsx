@@ -1,6 +1,6 @@
 "use client";
 
-import { Pause, Pencil, Play, Trash2 } from "lucide-react";
+import { CornerUpRight, FileText, Pause, Pencil, Play, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/components/api";
@@ -43,11 +43,45 @@ export function LinkQuickActions({ link }: { link: Link }) {
       >
         <Pencil size={13} /> Destino
       </button>
+      <button
+        type="button"
+        className="btn btn-sm"
+        disabled={ocupado}
+        title={
+          link.mode === "redirect"
+            ? "Está em redirect. Clique para mostrar a página white neste código."
+            : "Está em página white. Clique para voltar a redirecionar."
+        }
+        onClick={() => {
+          if (link.mode === "redirect") {
+            void patch({ mode: "page" });
+            return;
+          }
+          if (link.destinationUrl) {
+            void patch({ mode: "redirect" });
+            return;
+          }
+          const nova = prompt(`Para virar redirect, informe a URL de destino de /${link.code}:`, "https://");
+          if (nova && nova.trim()) void patch({ mode: "redirect", destinationUrl: nova.trim() });
+        }}
+      >
+        {link.mode === "redirect" ? (
+          <>
+            <FileText size={13} /> Página
+          </>
+        ) : (
+          <>
+            <CornerUpRight size={13} /> Redirect
+          </>
+        )}
+      </button>
       <Switch
         on={link.active}
         size="sm"
         disabled={ocupado}
-        title={link.active ? "ON: redireciona. Clique para OFF (página white)." : "OFF: página white. Clique para ON (redirect)."}
+        labelOn="Ativo"
+        labelOff="Pausado"
+        title={link.active ? "Link ativo. Clique para pausar (mostra a página white)." : "Link pausado. Clique para ativar."}
         onChange={(v) => void patch({ active: v })}
       />
       <button

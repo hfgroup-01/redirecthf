@@ -2,7 +2,7 @@
 
 import { AlertTriangle, CheckCircle2, RefreshCw, Search, ShieldCheck, Trash2, XCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/components/api";
 import { PageConfigFields } from "@/components/PageConfigFields";
 import { Switch } from "@/components/Switch";
@@ -181,6 +181,10 @@ export function DomainSwitch({ domain, size = "sm" }: { domain: Domain; size?: "
   const router = useRouter();
   const [on, setOn] = useState(domain.redirectsEnabled);
   const [ocupado, setOcupado] = useState(false);
+  // Acompanha o valor do servidor (outra aba, outra tela, refresh).
+  useEffect(() => {
+    setOn(domain.redirectsEnabled);
+  }, [domain.redirectsEnabled, domain.updatedAt]);
   return (
     <Switch
       on={on}

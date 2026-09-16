@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/components/api";
 import { CopyButton } from "@/components/CopyButton";
 import { Field, Msg } from "@/components/ui";
@@ -17,25 +17,37 @@ interface Props {
   role: Role;
 }
 
-export function LinkForm({ link, clients, domains, defaultClientId, role }: Props) {
-  const router = useRouter();
-  const clienteInicial = clients.find((c) => c.id === (link?.clientId ?? defaultClientId));
-  const [f, setF] = useState({
+function valores(link: Link | undefined, cliente: Client | undefined, defaultClientId?: string) {
+  return {
     clientId: link?.clientId ?? defaultClientId ?? "",
-    domainId: link?.domainId ?? clienteInicial?.defaultDomainId ?? "",
+    domainId: link?.domainId ?? cliente?.defaultDomainId ?? "",
     code: link?.code ?? "",
     label: link?.label ?? "",
-    destinationUrl: link?.destinationUrl ?? clienteInicial?.defaultUrl ?? "",
+    destinationUrl: link?.destinationUrl ?? cliente?.defaultUrl ?? "",
     mode: (link?.mode ?? "redirect") as LinkMode,
     appendQuery: link?.appendQuery ?? true,
     pageTitle: link?.pageTitle ?? "",
     pageBody: link?.pageBody ?? "",
     active: link?.active ?? true,
-  });
+  };
+}
+
+export function LinkForm({ link, clients, domains, defaultClientId, role }: Props) {
+  const router = useRouter();
+  const clienteInicial = clients.find((c) => c.id === (link?.clientId ?? defaultClientId));
+  const [f, setF] = useState(() => valores(link, clienteInicial, defaultClientId));
   const [msg, setMsg] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
   const [criado, setCriado] = useState<Link | null>(null);
   const [salvando, setSalvando] = useState(false);
   const up = (k: keyof typeof f, v: string | boolean) => setF({ ...f, [k]: v });
+
+  // O servidor mandou dados novos (ex.: o modo foi trocado pelos botões da linha):
+  // recarrega o formulário, senão o próximo "Salvar" desfaria a mudança.
+  const carimbo = link?.updatedAt;
+  useEffect(() => {
+    if (link) setF(valores(link, clienteInicial, defaultClientId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [carimbo]);
 
   // Admin: o domínio precisa ter o mesmo dono do link (cliente escolhido, ou sem dono).
   const dominiosVisiveis = role === "admin" ? domains.filter((d) => (d.clientId ?? "") === (f.clientId || "")) : domains;

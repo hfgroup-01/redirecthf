@@ -3,7 +3,7 @@
 import { Eye, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/components/api";
 import { Switch } from "@/components/Switch";
 import type { Client } from "@/lib/types";
@@ -49,6 +49,9 @@ export function ClientSwitch({ client }: { client: Client }) {
   const router = useRouter();
   const [on, setOn] = useState(client.active);
   const [ocupado, setOcupado] = useState(false);
+  useEffect(() => {
+    setOn(client.active);
+  }, [client.active, client.updatedAt]);
   return (
     <Switch
       on={on}
