@@ -158,6 +158,20 @@ Get-Content C:\hfredirect\data\.secret | Set-Clipboard
 
 `HF_ADMIN_HOST` é obrigatório: sem ele, o painel só abre em `localhost` e o domínio devolve 404.
 
+**Se o `HF_SECRET` faltar**, o HF não avisa: ele gera um segredo novo em `/data/.secret` e sobe
+normalmente. O sintoma aparece depois, ao usar qualquer coisa que dependa da Cloudflare — botão DNS
+de domínio ou de zona curinga — na forma de `Unsupported state or unable to authenticate data`, que
+é o AES-GCM recusando a chave errada. Os tokens no banco continuam íntegros; só essa instância não
+os lê. Para conferir qual segredo o serviço está usando, sem expor o valor:
+
+```bash
+V=$(docker service inspect crm_hfredirect --format '{{range .Spec.TaskTemplate.ContainerSpec.Env}}{{println .}}{{end}}' | grep '^HF_SECRET=' | cut -d= -f2-)
+echo "tamanho: ${#V}"; printf '%s' "$V" | sha256sum | cut -c1-12
+```
+
+Compare com o do PC (`node -e "..."` sobre `data/.secret`): tamanho **43** e o mesmo prefixo de
+hash. `tamanho: 0` com hash `e3b0c44298fc` significa variável ausente.
+
 ## 7. Atualizações daqui pra frente
 
 `git push` na `main` → no EasyPanel, **Implantar** no serviço `hfredirect` (30–90 s). Se a
