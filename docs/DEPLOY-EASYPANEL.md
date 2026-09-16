@@ -5,16 +5,19 @@ Resultado final: o HF roda 24h na VPS. O **painel** entra pelo Traefik em
 **túnel Cloudflare**, sem precisar cadastrar domínio nenhum no EasyPanel.
 
 ```
-você ───────────► Traefik (EasyPanel) ──► serviço hf :3100     (painel)
-lead ──► Cloudflare ──► túnel "hf" ──► serviço cloudflared ──► serviço hf :3100   (redirects)
+você ───────────► Traefik (EasyPanel) ──► crm_hfredirect:3100          (painel)
+lead ──► Cloudflare ──► túnel "hf" ──► cloudflared ──► crm_hfredirect:3100   (redirects)
 ```
+
+No EasyPanel: projeto **crm**, serviço **hfredirect**. O endereço interno do serviço é
+`crm_hfredirect` e a porta é **3100** (aparece na lista de Domínios, à direita da seta).
 
 ## Estado atual
 
 | Etapa | Situação |
 |---|---|
 | Supabase com o schema mais novo | **feito** (v5) |
-| Serviço `hf` no EasyPanel | **feito** — `https://hfredirect.lumix1.cfd/admin` responde |
+| Serviço `hfredirect` no EasyPanel | **feito** — `https://hfredirect.lumix1.cfd/admin` responde |
 | Serviço `cloudflared` no EasyPanel | **falta** — é o que este guia detalha |
 | Desligar o HF do PC | depois do `cloudflared` |
 
@@ -34,17 +37,9 @@ Get-Content "C:\Users\Hercules Ferreira\.cloudflared\20529d8f-a352-43ba-9656-b03
 É um JSON de uma linha com `AccountTag`, `TunnelSecret`, `TunnelID` e `Endpoint`. Guarde num bloco
 de notas: você vai colar daqui a pouco. **Não** suba esse arquivo para o GitHub.
 
-## 2. Descobrir o endereço interno do serviço `hf`
+## 2. Criar o serviço `cloudflared`
 
-No EasyPanel, abra o serviço `hf`. Em **Domains** (ou Networking) aparece o endereço interno, no
-formato `nomedoprojeto_hf`. Anote: o túnel vai apontar para `http://NOMEDOPROJETO_hf:3100`.
-
-Se não achar, o nome costuma ser `<nome do projeto>_<nome do serviço>`. Exemplo: projeto `hf`,
-serviço `hf` → `hf_hf`.
-
-## 3. Criar o serviço `cloudflared`
-
-No mesmo projeto: **+ Service → App**.
+No projeto **crm**: **+ Serviço → App**.
 
 **Nome**: `cloudflared`
 
@@ -60,7 +55,8 @@ cloudflare/cloudflared:latest
 tunnel --config /etc/cloudflared/config.yml run
 ```
 
-> Se o log acusar comando desconhecido, troque por `cloudflared tunnel --config /etc/cloudflared/config.yml run`.
+> Se o log acusar comando desconhecido, troque por
+> `cloudflared tunnel --config /etc/cloudflared/config.yml run`.
 
 **Mounts → Add Mount → File** (dois arquivos):
 
@@ -70,19 +66,19 @@ tunnel --config /etc/cloudflared/config.yml run
 tunnel: 20529d8f-a352-43ba-9656-b030a5ae142a
 credentials-file: /etc/cloudflared/credentials.json
 ingress:
-  - service: http://NOMEDOPROJETO_hf:3100
+  - service: http://crm_hfredirect:3100
 ```
 
-Troque `NOMEDOPROJETO_hf` pelo que você anotou no passo 2. O ingress sem hostname é *catch-all*:
-qualquer domínio que aponte para o túnel chega ao HF, sem mexer no túnel de novo.
+O ingress sem hostname é *catch-all*: qualquer domínio apontado para o túnel chega ao HF, sem
+precisar mexer no túnel a cada BM nova.
 
 2. Caminho `/etc/cloudflared/credentials.json`, conteúdo: o JSON copiado no passo 1.
 
-**Domains**: nenhum. **Ports**: nenhuma. O serviço só faz conexão de saída.
+**Domínios**: nenhum. **Portas**: nenhuma. O serviço só faz conexão de saída.
 
-Clique em **Deploy**.
+Clique em **Implantar**.
 
-## 4. Conferir
+## 3. Conferir
 
 No log do serviço `cloudflared` devem aparecer quatro linhas:
 
@@ -99,13 +95,13 @@ Erros comuns:
 |---|---|
 | `failed to sufficiently increase receive buffer size` | aviso normal do QUIC, pode ignorar |
 | `Unauthorized: Failed to get tunnel` | o `credentials.json` foi colado errado ou incompleto |
-| `dial tcp: lookup ...: no such host` | o nome no `ingress` está errado (passo 2) |
-| `connection refused` | o serviço `hf` está parado ou não está na porta 3100 |
+| `dial tcp: lookup ...: no such host` | o nome no `ingress` está diferente de `crm_hfredirect` |
+| `connection refused` | o serviço `hfredirect` está parado ou fora da porta 3100 |
 
-Com o túnel de pé, o mesmo túnel passa a ter **dois conectores** (PC e VPS) e a Cloudflare divide
-os acessos entre eles. Isso é normal durante a troca.
+Com o túnel de pé, ele passa a ter **dois conectores** (PC e VPS) e a Cloudflare divide os acessos
+entre eles. Isso é normal durante a troca.
 
-## 5. Desligar o HF do PC (cutover)
+## 4. Desligar o HF do PC (cutover)
 
 1. Feche a janela **HF Redirects** no PC.
 2. Teste, pelo celular ou numa janela anônima:
@@ -115,10 +111,17 @@ os acessos entre eles. Isso é normal durante a troca.
 3. Deu problema? Reabra o atalho no PC: ele volta a atender pelo mesmo túnel enquanto você
    investiga.
 
-Depois disso o PC pode ficar desligado. Não deixe os dois rodando o tempo todo: os caches do HF
-são por processo, então duas instâncias podem demorar até 30 s para enxergar a mudança da outra.
+Depois disso o PC pode ficar desligado. Não deixe os dois rodando o tempo todo: os caches do HF são
+por processo, então duas instâncias podem demorar até 30 s para enxergar a mudança da outra.
 
-## 6. Variáveis do serviço `hf` (conferência)
+## 5. Domínios do serviço `hfredirect`
+
+| Domínio | Destino | Situação |
+|---|---|---|
+| `hfredirect.lumix1.cfd` | `crm_hfredirect:3100` | correto, é o painel |
+| `crm-hfredirect.ck75vf.easypanel.host` | `crm_hfredirect:80` | porta errada (nada escuta na 80) e o host não está autorizado no painel: responde 502/404. Pode apagar |
+
+## 6. Variáveis do serviço `hfredirect` (conferência)
 
 ```
 PORT=3100
@@ -139,8 +142,8 @@ Get-Content C:\hfredirect\data\.secret | Set-Clipboard
 
 ## 7. Atualizações daqui pra frente
 
-`git push` na `main` → no EasyPanel, **Deploy** no serviço `hf` (30–90 s). Se a atualização mexer no
-banco, rode antes o `supabase/schema.sql` novo no SQL Editor do Supabase (é idempotente, pode rodar
-quantas vezes quiser).
+`git push` na `main` → no EasyPanel, **Implantar** no serviço `hfredirect` (30–90 s). Se a
+atualização mexer no banco, rode antes o `supabase/schema.sql` novo no SQL Editor do Supabase (é
+idempotente, pode rodar quantas vezes quiser).
 
 O serviço `cloudflared` não precisa ser tocado nas atualizações.
