@@ -18,11 +18,11 @@ No EasyPanel: projeto **crm**, serviço **hfredirect**. O endereço interno do s
 |---|---|
 | Supabase com o schema mais novo | **feito** (v5) |
 | Serviço `hfredirect` no EasyPanel | **feito** — `https://hfredirect.lumix1.cfd/admin` responde |
-| Serviço `cloudflared` no EasyPanel | **falta** — é o que este guia detalha |
-| Desligar o HF do PC | depois do `cloudflared` |
+| Serviço `cloudflared` no EasyPanel | **feito** (16/09/2026) — imagem construída de `docker/cloudflared.Dockerfile` |
+| Desligar o HF do PC | **feito** — cutover conferido com o túnel do PC parado |
 
-Enquanto o `cloudflared` não subir na VPS, os links `*.lumix10.cfd` dependem do PC ligado com o
-atalho **HF Redirects** aberto. O painel já não depende.
+O PC não participa mais: painel, redirects e as 9 zonas curinga respondem pela VPS. O atalho
+**HF Redirects** só serve como plano B se a VPS cair.
 
 ---
 
