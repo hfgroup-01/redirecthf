@@ -126,12 +126,18 @@ async function verificar(id: string, wc: Wildcard, steps: Passo[]): Promise<Wild
     steps.push({ step: "Curinga no ar", status: "ok", message: `${probe} chega neste HF.` });
     return updateWildcard(id, { status: "active", lastError: null, lastCheckAt: agora() });
   }
+  // Sem registro criado, "dns_ok" seria mentira: o painel mostraria "DNS OK ·
+  // propagando" para uma zona cujo `*` nunca foi cadastrado (o botão Verificar
+  // não toca na Cloudflare, então ele sozinho nunca deixa o DNS pronto).
+  const temRegistro = Boolean(wc.dnsRecordId);
   steps.push({
     step: "Curinga no ar",
     status: "warn",
-    message: `${check.detail} O DNS foi configurado; a propagação pode levar alguns minutos. Use "Verificar" depois.`,
+    message: temRegistro
+      ? `${check.detail} O DNS foi configurado; a propagação pode levar alguns minutos. Use "Verificar" depois.`
+      : `${check.detail} O registro curinga ainda não foi criado: use o botão "DNS".`,
   });
-  return updateWildcard(id, { status: "dns_ok", lastError: check.detail, lastCheckAt: agora() });
+  return updateWildcard(id, { status: temRegistro ? "dns_ok" : "pending", lastError: check.detail, lastCheckAt: agora() });
 }
 
 async function falhar(id: string, steps: Passo[], passo: string, e: unknown): Promise<WildcardResult> {
