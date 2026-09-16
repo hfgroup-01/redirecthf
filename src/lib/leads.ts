@@ -31,6 +31,21 @@ export function variavelTemplate(code: string, lead: string): string {
   return `${code}.${lead}`;
 }
 
+/**
+ * Id opaco do lead, gerado pelo HF ao importar a planilha: nada de telefone na
+ * URL. Alfabeto sem caracteres ambíguos; 12 caracteres = colisão desprezível
+ * (31^12 ≈ 8e17) e ainda curto o bastante para caber no botão do template.
+ */
+const ALFABETO_ID = "abcdefghjkmnpqrstuvwxyz23456789";
+
+export function gerarLeadId(tamanho = 12): string {
+  const bytes = new Uint8Array(tamanho);
+  crypto.getRandomValues(bytes);
+  let out = "";
+  for (let i = 0; i < tamanho; i++) out += ALFABETO_ID[bytes[i] % ALFABETO_ID.length];
+  return out;
+}
+
 /** Regex nova a cada uso: `g` guarda estado (lastIndex) e vazaria entre chamadas. */
 const marcador = () => /\{\{?lead\}?\}|%7B%7B?lead%7D?%7D/gi;
 

@@ -216,6 +216,11 @@ export const MIGRACOES: string[] = [
 
   ALTER TABLE clicks ADD COLUMN lead TEXT;
   `,
+  // v5 — referência do lead (telefone/nome da planilha) ao lado do id gerado.
+  `
+  ALTER TABLE lead_targets ADD COLUMN ref TEXT;
+  CREATE INDEX IF NOT EXISTS lead_targets_ref_idx ON lead_targets (link_id, ref);
+  `,
 ];
 
 export const REQUIRED_TABLES = [

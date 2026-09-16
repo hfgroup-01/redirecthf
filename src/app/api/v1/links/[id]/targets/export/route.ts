@@ -7,20 +7,20 @@ import { allTargets } from "@/lib/stores/targets";
 
 export const dynamic = "force-dynamic";
 
-/** GET — CSV com todos os destinos do link: lead, url, hf_var ({{1}}), hf_url, cliques. */
+/** GET — CSV com todos os leads do link: id, referência, destino, variável e URL. */
 export const GET = protegido<{ id: string }>(async (req: NextRequest, actor, { id }) => {
   const link = await acharLink(id, actor, req);
   if (!link) throw notFound("Link não encontrado.");
   const host = link.domainHostname;
-  const linhas: unknown[][] = [["lead", "url", "hf_var", "hf_url", "cliques", "ultimo_clique"]];
+  const linhas: unknown[][] = [["hf_id", "referencia", "destino", "hf_var", "hf_url", "cliques", "ultimo_clique"]];
   for (const t of await allTargets(link.id)) {
     const v = variavelTemplate(link.code, t.lead);
-    linhas.push([t.lead, t.destinationUrl, v, host ? `https://${host}/${v}` : "", t.clicksCount, t.lastClickAt ?? ""]);
+    linhas.push([t.lead, t.ref ?? "", t.destinationUrl, v, host ? `https://${host}/${v}` : "", t.clicksCount, t.lastClickAt ?? ""]);
   }
   return new NextResponse(toCsv(linhas, ";"), {
     headers: {
       "content-type": "text/csv; charset=utf-8",
-      "content-disposition": `attachment; filename="${link.code}-destinos.csv"`,
+      "content-disposition": `attachment; filename="${link.code}-leads.csv"`,
       "cache-control": "no-store",
     },
   });

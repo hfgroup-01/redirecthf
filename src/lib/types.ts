@@ -153,7 +153,10 @@ export interface Click {
 export interface LeadTarget {
   id: number;
   linkId: string;
+  /** Id do lead que vai na URL (gerado pelo HF ou vindo da planilha). */
   lead: string;
+  /** Referência para você: telefone/nome da planilha. Não aparece na URL. */
+  ref: string | null;
   destinationUrl: string;
   clicksCount: number;
   lastClickAt: string | null;

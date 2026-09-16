@@ -294,18 +294,18 @@ let linkX2 = null;
   });
   ok(up.status === 200 && up.json?.resumo?.gravados === 2 && up.json?.resumo?.semLead === 1 && up.json?.resumo?.urlInvalida === 1, `API gravou destinos por lead (${JSON.stringify(up.json?.resumo)})`);
   const r1 = await call(`/${linkX1.code}.5511999990001?utm_source=wa`, { jar: anon, headers: { host: HOST_A } });
-  ok(r1.status === 302 && r1.headers.get("location") === "https://example.org/lead-1?utm_source=wa&l=5511999990001", `codigo.lead -> URL do lead (${r1.headers.get("location")})`);
+  ok(r1.status === 302 && r1.headers.get("location") === "https://example.org/lead-1?utm_source=wa", `codigo.lead -> URL do lead, sem sujar com o id (${r1.headers.get("location")})`);
   const r2 = await call(`/${linkX1.code}?l=5511999990002`, { jar: anon, headers: { host: HOST_A } });
   ok(r2.status === 302 && (r2.headers.get("location") ?? "").startsWith("https://example.org/lead-2?"), "?l=lead -> URL do lead");
   const r3 = await call(`/${linkX1.code}.5511999990009`, { jar: anon, headers: { host: HOST_A } });
   ok(r3.status === 302 && (r3.headers.get("location") ?? "").startsWith("https://example.org/c1-x2"), "lead sem destino próprio -> URL padrão do link");
   const r4 = await call(`/${linkX1.code}.5511999990001`, { jar: anon, headers: { host: HOST_B } });
-  ok(r4.status === 302 && r4.headers.get("location") === "https://example.org/c2-x?l=5511999990001", "mesmo código em B não usa os destinos de A");
+  ok(r4.status === 302 && r4.headers.get("location") === "https://example.org/c2-x", "mesmo código em B não usa os destinos de A");
   const csv = "telefone;nome;link\r\n\"(55) 11 99999-0003\";Ana;https://example.org/lead-3\r\n5511999990001;Bia;https://example.org/lead-1b\r\n";
   const imp = await call(`/api/v1/links/${linkX1.id}/targets/import?retorno=csv`, {
     method: "POST",
     jar: cliente,
-    raw: `--hfb\r\nContent-Disposition: form-data; name="file"; filename="leads.csv"\r\nContent-Type: text/csv\r\n\r\n${csv}\r\n--hfb\r\nContent-Disposition: form-data; name="leadColumn"\r\n\r\ntelefone\r\n--hfb\r\nContent-Disposition: form-data; name="urlColumn"\r\n\r\nlink\r\n--hfb--\r\n`,
+    raw: `--hfb\r\nContent-Disposition: form-data; name="file"; filename="leads.csv"\r\nContent-Type: text/csv\r\n\r\n${csv}\r\n--hfb\r\nContent-Disposition: form-data; name="modo"\r\n\r\nexistente\r\n--hfb\r\nContent-Disposition: form-data; name="leadColumn"\r\n\r\ntelefone\r\n--hfb\r\nContent-Disposition: form-data; name="urlColumn"\r\n\r\nlink\r\n--hfb--\r\n`,
     headers: { "content-type": "multipart/form-data; boundary=hfb" },
   });
   const resumo = imp.headers.get("x-hf-resumo") ? JSON.parse(decodeURIComponent(imp.headers.get("x-hf-resumo"))).resumo : null;
@@ -317,7 +317,7 @@ let linkX2 = null;
   const res = await call(`/api/v1/resolve/${linkX1.code}?lead=5511999990002`, { jar: cliente });
   ok(res.status === 200 && res.json?.destino === "https://example.org/lead-2", "resolve com ?lead= mostra o destino do lead");
   const exp = await call(`/api/v1/links/${linkX1.id}/targets/export`, { jar: cliente });
-  ok(exp.status === 200 && exp.texto.includes("lead;url;hf_var;hf_url") && exp.texto.split("\n").length >= 4, "export CSV dos destinos");
+  ok(exp.status === 200 && exp.texto.includes("hf_id;referencia;destino;hf_var;hf_url") && exp.texto.split("\n").length >= 4, "export CSV dos leads");
   const outro = await call(`/api/v1/links/${linkX2.id}/targets`, { jar: cliente });
   ok(outro.status === 404, "cliente não vê destinos de link de outro cliente");
   // CSV sem coluna de URL (modo marcador): não grava nada, só devolve hf_var/hf_url
@@ -325,7 +325,7 @@ let linkX2 = null;
   const semUrl = await call(`/api/v1/links/${linkY1.id}/targets/import?retorno=csv`, {
     method: "POST",
     jar: cliente,
-    raw: `--hfb\r\nContent-Disposition: form-data; name="file"; filename="mailing.csv"\r\nContent-Type: text/csv\r\n\r\n${csvSemUrl}\r\n--hfb\r\nContent-Disposition: form-data; name="leadColumn"\r\n\r\ntelefone\r\n--hfb\r\nContent-Disposition: form-data; name="semUrl"\r\n\r\n1\r\n--hfb--\r\n`,
+    raw: `--hfb\r\nContent-Disposition: form-data; name="file"; filename="mailing.csv"\r\nContent-Type: text/csv\r\n\r\n${csvSemUrl}\r\n--hfb\r\nContent-Disposition: form-data; name="modo"\r\n\r\nexistente\r\n--hfb\r\nContent-Disposition: form-data; name="leadColumn"\r\n\r\ntelefone\r\n--hfb\r\nContent-Disposition: form-data; name="semUrl"\r\n\r\n1\r\n--hfb--\r\n`,
     headers: { "content-type": "multipart/form-data; boundary=hfb" },
   });
   const metaSemUrl = semUrl.headers.get("x-hf-resumo") ? JSON.parse(decodeURIComponent(semUrl.headers.get("x-hf-resumo"))) : null;
@@ -343,6 +343,37 @@ let linkX2 = null;
   ok(del1.json?.removidos === 1 && delAll.json?.removidos === 2, "apagar um lead e depois todos");
   const r6 = await call(`/${linkX1.code}.5511999990001`, { jar: anon, headers: { host: HOST_A } });
   ok(r6.status === 302 && (r6.headers.get("location") ?? "").startsWith("https://example.org/c1-x2"), "sem destinos, volta à URL padrão (cache invalidado)");
+}
+
+// 11b2. modo "gerar": planilha com coluna de link -> o HF cria um id por lead
+{
+  const csv = "nome;telefone;link\r\nAna;5511977770001;https://example.org/pedido/aaa\r\nBia;5511977770002;https://example.org/pedido/bbb\r\nCarlos;5511977770003;nao-e-url\r\n";
+  const r = await call(`/api/v1/links/${linkX1.id}/targets/import?retorno=csv`, {
+    method: "POST",
+    jar: cliente,
+    raw: `--hfb\r\nContent-Disposition: form-data; name="file"; filename="lista.csv"\r\nContent-Type: text/csv\r\n\r\n${csv}\r\n--hfb\r\nContent-Disposition: form-data; name="modo"\r\n\r\ngerar\r\n--hfb\r\nContent-Disposition: form-data; name="urlColumn"\r\n\r\nlink\r\n--hfb\r\nContent-Disposition: form-data; name="refColumn"\r\n\r\ntelefone\r\n--hfb--\r\n`,
+    headers: { "content-type": "multipart/form-data; boundary=hfb" },
+  });
+  const meta = r.headers.get("x-hf-resumo") ? JSON.parse(decodeURIComponent(r.headers.get("x-hf-resumo"))) : null;
+  ok(r.status === 200 && meta?.resumo?.gravados === 2 && meta?.resumo?.urlInvalida === 1, `modo gerar: 2 ids criados, 1 linha com link inválido (${JSON.stringify(meta?.resumo)})`);
+  const linhas = r.texto.split("\r\n").filter(Boolean);
+  ok(linhas[0].includes("hf_id") && linhas[0].includes("hf_var") && linhas[0].includes("hf_url"), "planilha devolvida ganha hf_id, hf_var e hf_url");
+  const idAna = /;([a-z2-9]{12});/.exec(linhas[1] + ";");
+  const gerado = linhas[1].split(";").slice(-3)[0];
+  ok(/^[a-z2-9]{12}$/.test(gerado), `id gerado tem 12 caracteres opacos (${gerado})`);
+  ok(!linhas[1].split(";").slice(-3)[1].includes("5511977770001"), "o telefone não vai na URL");
+  void idAna;
+  const clique = await call(`/${linkX1.code}.${gerado}`, { jar: anon, headers: { host: HOST_A } });
+  ok(clique.status === 302 && clique.headers.get("location") === "https://example.org/pedido/aaa", `clique no id gerado vai para o link da linha (${clique.headers.get("location")})`);
+  const inexistente = await call(`/${linkX1.code}.zzzzzzzzzzzz`, { jar: anon, headers: { host: HOST_A } });
+  ok(inexistente.status === 302 && (inexistente.headers.get("location") ?? "").startsWith("https://example.org/c1-x2"), "id desconhecido cai no destino padrão");
+  const lista = await call(`/api/v1/links/${linkX1.id}/targets?q=5511977770001`, { jar: cliente });
+  ok(lista.json?.items?.[0]?.ref === "5511977770001" && lista.json.items[0].lead === gerado, "busca pela referência (telefone) acha o lead");
+  const api = await call(`/api/v1/links/${linkX1.id}/targets`, { method: "POST", body: { targets: [{ url: "https://example.org/pedido/api", ref: "via-n8n" }] }, jar: cliente });
+  ok(api.status === 200 && /^[a-z2-9]{12}$/.test(api.json?.leads?.[0]?.id ?? "") && (api.json?.leads?.[0]?.url ?? "").includes(HOST_A), `API sem lead gera o id e devolve a URL (${api.json?.leads?.[0]?.var})`);
+  const cliqueApi = await call(`/${linkX1.code}.${api.json.leads[0].id}`, { jar: anon, headers: { host: HOST_A } });
+  ok(cliqueApi.status === 302 && cliqueApi.headers.get("location") === "https://example.org/pedido/api", "clique no id criado pela API");
+  await call(`/api/v1/links/${linkX1.id}/targets`, { method: "DELETE", jar: cliente });
 }
 
 // 11c. marcador {lead} na URL de destino (sem CSV): id do lead encaixado na URL, com maiúsculas preservadas

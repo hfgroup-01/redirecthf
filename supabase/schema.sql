@@ -198,6 +198,10 @@ create unique index if not exists lead_targets_link_lead_key on public.lead_targ
 
 alter table public.clicks add column if not exists lead text;
 
+-- v5: referência do lead (telefone/nome vindos da planilha) ao lado do id gerado
+alter table public.lead_targets add column if not exists ref text;
+create index if not exists lead_targets_ref_idx on public.lead_targets (link_id, ref);
+
 -- ---------------------------------------------------------------- segurança
 -- RLS ligado e sem políticas = a API REST/anon do Supabase não lê nem escreve.
 -- O HF entra como postgres pela connection string e ignora RLS.
@@ -214,5 +218,5 @@ alter table public.lead_targets enable row level security;
 
 -- Versão do schema (o HF confere no /api/v1/health)
 insert into public.settings (key, value, updated_at)
-values ('schema_version', '"4"', now())
+values ('schema_version', '"5"', now())
 on conflict (key) do update set value = excluded.value, updated_at = now();

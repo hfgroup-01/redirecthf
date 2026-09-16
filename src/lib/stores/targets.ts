@@ -3,7 +3,7 @@
  * Importação em lotes (CSV/API), upsert por (link_id, lead_key).
  */
 import { agora, escalar, likeOp, rodar, todos, transacao, um, type Valor } from "@/lib/db";
-import { normalizarLead } from "@/lib/leads";
+import { gerarLeadId, normalizarLead } from "@/lib/leads";
 import { invalidateLinkCache } from "@/lib/resolve";
 import type { LeadTarget, Paginado } from "@/lib/types";
 
@@ -11,6 +11,7 @@ interface Row {
   id: number;
   link_id: string;
   lead_key: string;
+  ref: string | null;
   destination_url: string;
   clicks_count: number;
   last_click_at: string | null;
@@ -22,6 +23,7 @@ const rowToTarget = (r: Row): LeadTarget => ({
   id: Number(r.id),
   linkId: r.link_id,
   lead: r.lead_key,
+  ref: r.ref ?? null,
   destinationUrl: r.destination_url,
   clicksCount: Number(r.clicks_count ?? 0),
   lastClickAt: r.last_click_at,
@@ -44,9 +46,9 @@ export async function listTargets(linkId: string, page = 1, pageSize = 50, q?: s
   const vals: Valor[] = [linkId];
   if (q?.trim()) {
     const L = likeOp();
-    where.push(`(lead_key ${L} ? OR destination_url ${L} ?)`);
+    where.push(`(lead_key ${L} ? OR ref ${L} ? OR destination_url ${L} ?)`);
     const like = `%${q.trim()}%`;
-    vals.push(like, like);
+    vals.push(like, like, like);
   }
   const w = `WHERE ${where.join(" AND ")}`;
   const total = await escalar(`SELECT COUNT(*) FROM lead_targets ${w}`, ...vals);
@@ -62,6 +64,7 @@ export async function allTargets(linkId: string, limit = 250_000): Promise<LeadT
 export interface TargetInput {
   lead: string;
   url: string;
+  ref?: string | null;
 }
 
 export interface UpsertResumo {
@@ -91,7 +94,7 @@ function urlValida(u: string): string | null {
  */
 export async function upsertTargets(linkId: string, entradas: TargetInput[]): Promise<UpsertResumo> {
   const resumo: UpsertResumo = { recebidos: entradas.length, gravados: 0, semLead: 0, urlInvalida: 0, duplicadosNoArquivo: 0, exemplosErro: [] };
-  const mapa = new Map<string, string>();
+  const mapa = new Map<string, { url: string; ref: string | null }>();
   for (const e of entradas) {
     const lead = normalizarLead(e.lead);
     if (!lead) {
@@ -105,7 +108,7 @@ export async function upsertTargets(linkId: string, entradas: TargetInput[]): Pr
       continue;
     }
     if (mapa.has(lead)) resumo.duplicadosNoArquivo++;
-    mapa.set(lead, url);
+    mapa.set(lead, { url, ref: e.ref?.trim().slice(0, 200) || null });
   }
   const linhas = [...mapa.entries()];
   const ts = agora();
@@ -113,14 +116,14 @@ export async function upsertTargets(linkId: string, entradas: TargetInput[]): Pr
   for (let i = 0; i < linhas.length; i += LOTE) {
     const parte = linhas.slice(i, i + LOTE);
     const vals: Valor[] = [];
-    const grupos = parte.map(([lead, url]) => {
-      vals.push(linkId, lead, url, ts, ts);
-      return "(?, ?, ?, ?, ?)";
+    const grupos = parte.map(([lead, e]) => {
+      vals.push(linkId, lead, e.ref, e.url, ts, ts);
+      return "(?, ?, ?, ?, ?, ?)";
     });
     await transacao(async (tx) => {
       await tx.rodar(
-        `INSERT INTO lead_targets (link_id, lead_key, destination_url, created_at, updated_at) VALUES ${grupos.join(", ")}
-         ON CONFLICT (link_id, lead_key) DO UPDATE SET destination_url = excluded.destination_url, updated_at = excluded.updated_at`,
+        `INSERT INTO lead_targets (link_id, lead_key, ref, destination_url, created_at, updated_at) VALUES ${grupos.join(", ")}
+         ON CONFLICT (link_id, lead_key) DO UPDATE SET destination_url = excluded.destination_url, ref = excluded.ref, updated_at = excluded.updated_at`,
         ...vals
       );
     });
@@ -128,6 +131,98 @@ export async function upsertTargets(linkId: string, entradas: TargetInput[]): Pr
   }
   invalidateLinkCache();
   return resumo;
+}
+
+export interface GerarEntrada {
+  url: string;
+  /** Telefone/nome da planilha: só para você identificar o lead no painel. */
+  ref?: string | null;
+}
+
+export interface GerarResultado {
+  /** Id gerado para cada linha, na MESMA ordem da entrada; null = linha inválida. */
+  ids: (string | null)[];
+  resumo: UpsertResumo;
+}
+
+/**
+ * Gera um id opaco por linha e grava (id -> URL). Não deduplica: duas pessoas
+ * podem ter o mesmo destino e cada uma recebe o próprio id.
+ *
+ * Colisão com id já existente é praticamente impossível (31^12), mas o índice
+ * único garante: as linhas que não entrarem ganham id novo em nova tentativa.
+ */
+export async function criarTargetsComId(linkId: string, entradas: GerarEntrada[]): Promise<GerarResultado> {
+  const resumo: UpsertResumo = { recebidos: entradas.length, gravados: 0, semLead: 0, urlInvalida: 0, duplicadosNoArquivo: 0, exemplosErro: [] };
+  const ids: (string | null)[] = new Array(entradas.length).fill(null);
+  // Linhas válidas, com o índice original para devolver o id no lugar certo.
+  const validas: { i: number; url: string; ref: string | null }[] = [];
+  for (let i = 0; i < entradas.length; i++) {
+    const url = urlValida(entradas[i].url ?? "");
+    if (!url) {
+      resumo.urlInvalida++;
+      if (resumo.exemplosErro.length < 5) resumo.exemplosErro.push(`linha ${i + 2}: URL inválida "${String(entradas[i].url ?? "").slice(0, 60)}"`);
+      continue;
+    }
+    validas.push({ i, url, ref: entradas[i].ref?.trim().slice(0, 200) || null });
+  }
+
+  const ts = agora();
+  const LOTE = 1000;
+  let pendentes = validas;
+  for (let tentativa = 0; tentativa < 3 && pendentes.length; tentativa++) {
+    const usados = new Set<string>();
+    for (const v of pendentes) {
+      let id = gerarLeadId();
+      while (usados.has(id)) id = gerarLeadId();
+      usados.add(id);
+      ids[v.i] = id;
+    }
+    const falhou: typeof pendentes = [];
+    for (let i = 0; i < pendentes.length; i += LOTE) {
+      const parte = pendentes.slice(i, i + LOTE);
+      const vals: Valor[] = [];
+      const grupos = parte.map((v) => {
+        vals.push(linkId, ids[v.i]!, v.ref, v.url, ts, ts);
+        return "(?, ?, ?, ?, ?, ?)";
+      });
+      const r = await transacao(async (tx) =>
+        tx.rodar(
+          `INSERT INTO lead_targets (link_id, lead_key, ref, destination_url, created_at, updated_at) VALUES ${grupos.join(", ")}
+           ON CONFLICT (link_id, lead_key) DO NOTHING`,
+          ...vals
+        )
+      );
+      if (r.changes === parte.length) {
+        resumo.gravados += parte.length;
+        continue;
+      }
+      // Alguma colisão: descobre quais ids do lote já existiam e regera só esses.
+      const doLote = parte.map((v) => ids[v.i]!);
+      const existentes = new Set(
+        (
+          await todos<{ lead_key: string }>(
+            `SELECT lead_key FROM lead_targets WHERE link_id = ? AND lead_key IN (${doLote.map(() => "?").join(", ")}) AND created_at <> ?`,
+            linkId,
+            ...doLote,
+            ts
+          )
+        ).map((x) => x.lead_key)
+      );
+      for (const v of parte) {
+        if (existentes.has(ids[v.i]!)) {
+          ids[v.i] = null;
+          falhou.push(v);
+        } else resumo.gravados++;
+      }
+    }
+    pendentes = falhou;
+  }
+  if (pendentes.length) {
+    resumo.exemplosErro.push(`${pendentes.length} linha(s) não receberam id (colisão repetida). Tente de novo.`);
+  }
+  invalidateLinkCache();
+  return { ids, resumo };
 }
 
 /** Apaga todos os destinos do link (ou só o de um lead). Devolve quantos saíram. */

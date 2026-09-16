@@ -82,12 +82,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ code: strin
     );
   }
 
-  if (link.appendQuery) {
+  // Repassa só o que veio na URL de origem (?utm_…, ?l=…). O id do caminho
+  // (codigo.id) NÃO é acrescentado: ele é interno do HF e sujaria o link do cliente.
+  if (link.appendQuery && search) {
     try {
       const u = new URL(destino);
       for (const [k, v] of req.nextUrl.searchParams) u.searchParams.append(k, v);
-      // Lead vindo do caminho (codigo.lead) também vai como ?l= para o destino (se a URL não o usou no marcador).
-      if (leadDoCaminho && !usouMarcador && !req.nextUrl.searchParams.has("l")) u.searchParams.append("l", leadDoCaminho);
       destino = u.toString();
     } catch {
       /* mantém o destino como está */
