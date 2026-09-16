@@ -1,98 +1,146 @@
-# Deploy do HF na VPS (EasyPanel) com o túnel Cloudflare
+# Deploy do HF na VPS (EasyPanel)
 
-Resultado: o HF roda 24h na VPS, o painel abre em `https://hfredirect.online/admin`, e todos os
-subdomínios de BM (`*.lumix10.cfd`) chegam ao HF pelo **mesmo túnel** que hoje roda no PC.
+Resultado final: o HF roda 24h na VPS. O **painel** entra pelo Traefik em
+`https://hfredirect.lumix1.cfd/admin`, e os **sites das BMs** (`*.lumix10.cfd`) entram pelo
+**túnel Cloudflare**, sem precisar cadastrar domínio nenhum no EasyPanel.
 
-## 0. O que você precisa ter em mãos
-
-| item | onde pegar |
-| --- | --- |
-| `DATABASE_URL` | linha 9 do `C:\hfredirect\.env` (pooler 6543 do Supabase) |
-| `HF_SECRET` | conteúdo de `C:\hfredirect\data\.secret` (obrigatório: cifra o token da Cloudflare e assina as sessões) |
-| credenciais do túnel | `C:\Users\Hercules Ferreira\.cloudflared\20529d8f-a352-43ba-9656-b030a5ae142a.json` |
-| repositório | GitHub privado com este projeto (EasyPanel builda pelo Dockerfile) |
-
-Imprima os dois arquivos no PC (para colar no EasyPanel):
-
-```powershell
-Get-Content C:\hfredirect\data\.secret
-Get-Content "C:\Users\Hercules Ferreira\.cloudflared\20529d8f-a352-43ba-9656-b030a5ae142a.json"
+```
+você ───────────► Traefik (EasyPanel) ──► serviço hf :3100     (painel)
+lead ──► Cloudflare ──► túnel "hf" ──► serviço cloudflared ──► serviço hf :3100   (redirects)
 ```
 
-## 1. Supabase
+## Estado atual
 
-O schema v3 já foi aplicado (Configurações → Banco de dados mostra "v3"). Nada a fazer.
+| Etapa | Situação |
+|---|---|
+| Supabase com o schema mais novo | **feito** (v5) |
+| Serviço `hf` no EasyPanel | **feito** — `https://hfredirect.lumix1.cfd/admin` responde |
+| Serviço `cloudflared` no EasyPanel | **falta** — é o que este guia detalha |
+| Desligar o HF do PC | depois do `cloudflared` |
 
-## 2. Projeto `hf` no EasyPanel
+Enquanto o `cloudflared` não subir na VPS, os links `*.lumix10.cfd` dependem do PC ligado com o
+atalho **HF Redirects** aberto. O painel já não depende.
 
-### Serviço `hf` (App)
+---
 
-- **Source**: GitHub → repositório privado → branch `main` → Build: **Dockerfile** (na raiz).
-- **Environment**:
-  ```
-  PORT=3100
-  HF_DATA_DIR=/data
-  DATABASE_URL=<do .env>
-  HF_SECRET=<conteúdo de data/.secret>
-  HF_ADMIN_HOST=hfredirect.online
-  HF_ADMIN_EMAIL=<seu e-mail>            # opcional: cria o admin sozinho se o banco não tiver usuário
-  HF_ADMIN_PASSWORD=<uma senha forte>    # idem
-  ```
-- **Mounts**: volume em `/data` (só para o caso de voltar ao SQLite; com Supabase fica vazio).
-- **Domains**: nenhum (o tráfego entra pelo túnel, não pelo Traefik). Se quiser, adicione o
-  domínio interno do EasyPanel só para ver o health, mas o painel só responde em `HF_ADMIN_HOST`
-  e `localhost`.
-- Porta interna: 3100. Anote o **hostname interno** do serviço (na aba Domains/Internal aparece algo
-  como `hf_hf`).
+## 1. Copiar as credenciais do túnel
 
-### Serviço `cloudflared` (App, imagem Docker)
+No PC, no PowerShell (copia para a área de transferência, sem aparecer na tela):
 
-- **Image**: `cloudflare/cloudflared:latest`
-- **Command**: `tunnel --config /etc/cloudflared/config.yml run`
-- **Mounts → File**: dois arquivos
-  1. `/etc/cloudflared/config.yml`:
-     ```yaml
-     tunnel: 20529d8f-a352-43ba-9656-b030a5ae142a
-     credentials-file: /etc/cloudflared/credentials.json
-     ingress:
-       - service: http://hf_hf:3100
-     ```
-     (troque `hf_hf` pelo hostname interno do serviço `hf`, se for diferente)
-  2. `/etc/cloudflared/credentials.json`: cole o conteúdo do JSON do túnel.
-- Sem portas nem domínios.
+```powershell
+Get-Content "C:\Users\Hercules Ferreira\.cloudflared\20529d8f-a352-43ba-9656-b030a5ae142a.json" | Set-Clipboard
+```
 
-Quando o `cloudflared` subir, o log mostra 4 linhas `Registered tunnel connection`. O túnel `hf`
-passa a ter **dois conectores** (PC + VPS) enquanto o lançador do PC estiver aberto: os acessos
-são distribuídos entre os dois. Isso é aceitável só durante a troca.
+É um JSON de uma linha com `AccountTag`, `TunnelSecret`, `TunnelID` e `Endpoint`. Guarde num bloco
+de notas: você vai colar daqui a pouco. **Não** suba esse arquivo para o GitHub.
 
-## 3. Host do painel: `hfredirect.online`
+## 2. Descobrir o endereço interno do serviço `hf`
 
-1. Cloudflare → Add a domain → `hfredirect.online` (plano Free) → troque os nameservers no
-   registrador para os que a Cloudflare indicar. Espere ficar "Active".
-2. No HF (ainda pelo PC, `http://localhost:3100/admin/config`): **Host do painel** =
-   `hfredirect.online` → Salvar → **Provisionar DNS do painel** (cria `CNAME hfredirect.online →
-   20529d8f-….cfargotunnel.com`, proxied, com flattening no apex).
-3. Abra `https://hfredirect.online/admin`. Como `HF_ADMIN_HOST` também está no ambiente da VPS,
-   as duas instâncias aceitam esse host.
+No EasyPanel, abra o serviço `hf`. Em **Domains** (ou Networking) aparece o endereço interno, no
+formato `nomedoprojeto_hf`. Anote: o túnel vai apontar para `http://NOMEDOPROJETO_hf:3100`.
 
-## 4. Cutover (PC → VPS)
+Se não achar, o nome costuma ser `<nome do projeto>_<nome do serviço>`. Exemplo: projeto `hf`,
+serviço `hf` → `hf_hf`.
 
-1. Confira `https://hfredirect.online/api/v1/health` (versão, `driver: pg`, `versao: 3`).
-2. Feche a janela "HF Redirects" no PC. Repita `https://lumix10.cfd/hf/ping` e um código real: continua
-   respondendo, agora só pela VPS.
-3. Se algo der errado, abra o atalho do PC de novo: ele volta a atender pelo mesmo túnel.
+## 3. Criar o serviço `cloudflared`
 
-## 5. Zona curinga e primeiro cliente
+No mesmo projeto: **+ Service → App**.
 
-1. Domínios → Zonas curinga → Adicionar `lumix10.cfd`. O HF mostra o `* A` (IP de estacionamento)
-   que existe hoje e pede confirmação → Substituir. Em 1–2 min o status vira "No ar".
-2. Clientes → Novo cliente → depois, na página do cliente: **Logins do cliente** → criar login
-   (copie a senha temporária e mande para o cliente).
-3. Domínios → Adicionar subdomínio: nome da BM + `*.lumix10.cfd` + cliente dono + CNPJ.
-4. O cliente entra em `https://hfredirect.online/admin`, cola o código da meta tag em "Meus domínios",
-   cria o primeiro código em "Meus links" e usa `https://<bm>.lumix10.cfd/{{1}}` no template.
+**Nome**: `cloudflared`
 
-## 6. Atualizações
+**Source** → aba **Docker Image**:
 
-`git push` na `main` → EasyPanel rebuilda e reinicia o serviço `hf` (30–90 s). Antes de um deploy
-que mude o banco, rode o `supabase/schema.sql` novo no SQL Editor (é idempotente).
+```
+cloudflare/cloudflared:latest
+```
+
+**Advanced → Command** (o `cloudflared` já é o executável da imagem; aqui vão só os argumentos):
+
+```
+tunnel --config /etc/cloudflared/config.yml run
+```
+
+> Se o log acusar comando desconhecido, troque por `cloudflared tunnel --config /etc/cloudflared/config.yml run`.
+
+**Mounts → Add Mount → File** (dois arquivos):
+
+1. Caminho `/etc/cloudflared/config.yml`, conteúdo:
+
+```yaml
+tunnel: 20529d8f-a352-43ba-9656-b030a5ae142a
+credentials-file: /etc/cloudflared/credentials.json
+ingress:
+  - service: http://NOMEDOPROJETO_hf:3100
+```
+
+Troque `NOMEDOPROJETO_hf` pelo que você anotou no passo 2. O ingress sem hostname é *catch-all*:
+qualquer domínio que aponte para o túnel chega ao HF, sem mexer no túnel de novo.
+
+2. Caminho `/etc/cloudflared/credentials.json`, conteúdo: o JSON copiado no passo 1.
+
+**Domains**: nenhum. **Ports**: nenhuma. O serviço só faz conexão de saída.
+
+Clique em **Deploy**.
+
+## 4. Conferir
+
+No log do serviço `cloudflared` devem aparecer quatro linhas:
+
+```
+Registered tunnel connection connIndex=0 ...
+Registered tunnel connection connIndex=1 ...
+Registered tunnel connection connIndex=2 ...
+Registered tunnel connection connIndex=3 ...
+```
+
+Erros comuns:
+
+| Log | Causa |
+|---|---|
+| `failed to sufficiently increase receive buffer size` | aviso normal do QUIC, pode ignorar |
+| `Unauthorized: Failed to get tunnel` | o `credentials.json` foi colado errado ou incompleto |
+| `dial tcp: lookup ...: no such host` | o nome no `ingress` está errado (passo 2) |
+| `connection refused` | o serviço `hf` está parado ou não está na porta 3100 |
+
+Com o túnel de pé, o mesmo túnel passa a ter **dois conectores** (PC e VPS) e a Cloudflare divide
+os acessos entre eles. Isso é normal durante a troca.
+
+## 5. Desligar o HF do PC (cutover)
+
+1. Feche a janela **HF Redirects** no PC.
+2. Teste, pelo celular ou numa janela anônima:
+   - `https://lumix10.cfd/hf/ping` → deve responder `{"hf":true,...}`
+   - um link real de BM, ex. `https://babyburguerlanches.lumix10.cfd/CODIGO.ID`
+   - `https://hfredirect.lumix1.cfd/admin` → painel
+3. Deu problema? Reabra o atalho no PC: ele volta a atender pelo mesmo túnel enquanto você
+   investiga.
+
+Depois disso o PC pode ficar desligado. Não deixe os dois rodando o tempo todo: os caches do HF
+são por processo, então duas instâncias podem demorar até 30 s para enxergar a mudança da outra.
+
+## 6. Variáveis do serviço `hf` (conferência)
+
+```
+PORT=3100
+HF_DATA_DIR=/data
+DATABASE_URL=<pooler 6543 do Supabase, igual ao .env do PC>
+HF_SECRET=<conteúdo de C:\hfredirect\data\.secret>
+HF_ADMIN_HOST=hfredirect.lumix1.cfd
+```
+
+O `HF_SECRET` precisa ser **o mesmo** do PC: é ele que decifra o token da Cloudflare guardado no
+banco e assina os cookies de sessão. Para copiar:
+
+```powershell
+Get-Content C:\hfredirect\data\.secret | Set-Clipboard
+```
+
+`HF_ADMIN_HOST` é obrigatório: sem ele, o painel só abre em `localhost` e o domínio devolve 404.
+
+## 7. Atualizações daqui pra frente
+
+`git push` na `main` → no EasyPanel, **Deploy** no serviço `hf` (30–90 s). Se a atualização mexer no
+banco, rode antes o `supabase/schema.sql` novo no SQL Editor do Supabase (é idempotente, pode rodar
+quantas vezes quiser).
+
+O serviço `cloudflared` não precisa ser tocado nas atualizações.

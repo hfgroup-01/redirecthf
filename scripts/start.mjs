@@ -2,6 +2,7 @@
 // Variáveis: PORT (3100), HOSTNAME (0.0.0.0), HF_DATA_DIR (./data), HF_SECRET, HF_ADMIN_PASSWORD, HF_ADMIN_HOST,
 // DATABASE_URL (Supabase/Postgres; vazio = SQLite).
 import { existsSync, readFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -37,3 +38,15 @@ process.env.HF_DATA_DIR = path.resolve(raiz, process.env.HF_DATA_DIR?.trim() || 
 process.env.NODE_ENV ||= "production";
 
 await import(pathToFileURL(server).href);
+
+// O Next imprime "Network: http://0.0.0.0:3100" — 0.0.0.0 é o endereço em que o
+// servidor escuta, não um endereço para abrir no navegador. Deixa claro o certo.
+{
+  const porta = process.env.PORT;
+  const rede = Object.values(os.networkInterfaces())
+    .flat()
+    .find((i) => i && i.family === "IPv4" && !i.internal)?.address;
+  console.log(`\nPainel:  http://localhost:${porta}/admin`);
+  if (rede) console.log(`Na rede: http://${rede}:${porta}/admin   (outros aparelhos desta rede)`);
+  console.log("Não use o endereço 0.0.0.0: ele não abre no navegador.\n");
+}
